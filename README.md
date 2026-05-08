@@ -10,6 +10,12 @@
 2. **编译全流程调用树 (`Document/compiler.md`)**
    分析了 Triton 编译器前端的调用总控点 `python/triton/compiler/compiler.py` 以及后端 `third_party/nvidia/backend/compiler.py`，并构建了**从上层 Python 算子到下层 LLVM IR 生成的完整代码调用关系图**，精确标注了每一个优化 Pass 发挥作用的时机。
 
+3. **完整编译调用栈分析 (`Document/CallStack.md`)**
+   通过在真实 CUDA 环境中运行 SNN 示例代码，使用 `sys.settrace` 截获了从 `torch.compile` 经由 TorchDynamo、AOTAutograd、TorchInductor 到 Triton 编译器各阶段的完整函数调用链，并标注了每个核心函数的**精确源文件位置与行号**。
+
+4. **框架到编译器的端到端映射 (SpikingJelly 示例)**
+   通过 `examples/spikingjelly_triton/` 下提供的基于 SpikingJelly 的 SNN 模型代码，结合 PyTorch 2.0+ `torch.compile` (依赖 Triton 后端)，呈现了上层框架的脉冲计算逻辑如何被动态追踪、编译，并最终生成 Triton GPU Kernel 的全过程。
+
 ## 🔖 源码版本控制
 
 为了保证所分析的代码块与实际代码的一致性和可复现性，本分析**精确锁定**在 Triton 代码库的特定版本（Commit）。
@@ -32,5 +38,12 @@ git submodule update --init --recursive
 
 - `Document/`：包含所有关于 Pass 的 Markdown 分析报告。
   - `compiler.md`：核心阅读起点，包含了总体调用流程树。
+  - `CallStack.md`：从 `torch.compile` 到 Triton 优化 Pass 的完整运行时函数调用栈。
   - `AccelerateMatmul.md`、`Coalesce.md`、`RemoveLayoutConversions.md` 等 19 份详细的优化 Pass 源码级剖析。
+- `examples/spikingjelly_triton/`：展示如何将 SpikingJelly 的计算逻辑通过 `torch.compile` 下发给 Triton 进行编译的示例代码。
+  - `snn_example.py`：SNN 示例用户代码。
+  - `run_example.sh`：在 `spiking_env` conda 环境中运行示例的脚本。
+  - `full_trace.py`：使用 `sys.settrace` 截获运行时完整函数调用栈的追踪脚本。
+  - `analysis/`：从真实运行中提取的各层中间表示（FX Graph、Triton Kernel、TTIR、TTGIR、LLVM IR、PTX）。
 - `triton/`：(Submodule) 所分析的原始 Triton 项目源代码。
+- `spikingjelly/`：(Submodule) 用于示例和分析的 SpikingJelly 源代码。

@@ -1,3 +1,7 @@
 [submodule "triton"]
 	path = triton
 	url = https://github.com/triton-lang/triton.git
+
+[submodule "spikingjelly"]
+	path = spikingjelly
+	url = https://github.com/fangwei123456/spikingjelly.git

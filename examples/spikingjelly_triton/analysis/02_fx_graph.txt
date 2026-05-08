@@ -1,0 +1,86 @@
+# ============================================================
+# Level 2: AOT Autograd FX Graph (TorchDynamo Captured Graph)
+# ============================================================
+# 当 torch.compile(model) 执行时，TorchDynamo 追踪器会捕获模型的前向计算，
+# AOTAutograd 则会立即生成前向图 (Forward Graph) 和反向图 (Backward Graph)。
+#
+# 这里展示的是「反向传播图」（backward graph）中的关键片段，
+# 对应的是 LIF 神经元 #1 (self.lif) + BatchNorm2d 的联合反向传播。
+#
+# ============================================================
+# 【关键变换解析：ATan 替代梯度是如何被展开的】
+# ============================================================
+#
+# 用户代码层 (Level 1)：
+#   loss.backward()
+#   -> self.lif.backward()    (SpikingJelly's ATan.backward)
+#
+# SpikingJelly 源码 (spikingjelly/activation_based/surrogate.py, 第 770-789 行):
+#   def atan_backward(grad_output, x, alpha):
+#       a = alpha / 2          # = 2.0 / 2 = 1.0
+#       ax = math.pi * a * x   # = pi * 1.0 * x = pi * x
+#       return a / (1 + ax * ax) * grad_output, None
+#
+# TorchDynamo 追踪时，该 Python 函数中的所有数学运算被展开为:
+#   tmp = pi * x              -> aten.mul.Tensor(div, 3.141592...)
+#   tmp_sq = tmp * tmp        -> aten.pow.Tensor_Scalar(mul, 2)
+#   denom = 1 + tmp_sq        -> aten.add.Tensor(pow, 1)
+#   inv_denom = 1 / denom     -> aten.reciprocal.default(add)
+#   grad_atan = inv_denom * 1 -> aten.mul.Tensor(reciprocal, 1.0)
+#   grad_out = grad * grad_atan -> aten.mul.Tensor(mul, add_14)
+#
+# 注意: alpha=2.0, a = alpha/2 = 1.0，所以乘以 a (=1.0) 无效果，
+#       最终系数 1/2 体现在 aten.div.Tensor(..., 2.0) 中。
+#
+# ============================================================
+# 【真实执行中由 TorchDynamo 捕获的 Graph fragment（AOT Backward Graph）】
+# ============================================================
+# 
+# 以下内容直接摘自真实运行时 Inductor 生成的 wrapper 文件：
+# /tmp/torchinductor_charlley/md/cmd257vas74ipq2tjgauqes7ilmrpkyrijcaqa6hoxp6g3xpvypa.py
+#
+# [Kernel #3: triton_poi_fused__native_batch_norm_...backward..._sub_3]
+# Source node to ATen node mapping:
+#   sub_1 => sub_2  (即 lif 第一层的替代梯度)
+#   sub_2 => sub_3  (即 bn 的反向传播)
+#   x_1   => squeeze, squeeze_1
+#
+# Graph fragment:
+#   %tangents_2 : Tensor "f32[4, 16, 28, 28]..." = PlaceHolder[target=tangents_2]
+#   %convert_element_type : Tensor "f32[4, 16, 28, 28]..." = PlaceHolder  # <- lif 脉冲 spike (float32)
+#   %div : Tensor "f32[4, 16, 28, 28]..." = PlaceHolder  # <- lif 充电电位 v (经过 BatchNorm 后)
+#   %add_14 : Tensor "f32[4, 16, 28, 28]..." = PlaceHolder
+#   %convolution : Tensor "f32[4, 16, 28, 28]..." = PlaceHolder
+#   %getitem_1 : Tensor "f32[1, 16, 1, 1]..." = PlaceHolder  # <- BatchNorm 的均值
+#   %sum_3 : Tensor "f32[16]..." = PlaceHolder
+#   %rsqrt : Tensor "f32[1, 16, 1, 1]..." = PlaceHolder  # <- BatchNorm 的方差倒数
+#
+# -- ATan Surrogate Gradient 计算部分 --
+#   %sub_3   = aten.sub.Tensor(1.0, %convert_element_type)  # 1 - spike
+#   %mul_18  = aten.mul.Tensor(%tangents_2, %sub_3)         # grad * (1 - spike)  [hard-reset 项]
+#   %sub_2   = aten.sub.Tensor(%div, 1.0)                   # v/2 - 1  [相对于阈值 V_th=1 归一化]
+#   %mul_20  = aten.mul.Tensor(%sub_2, 3.141592653589793)   # (v-1) * pi
+#   %pow_2   = aten.pow.Tensor_Scalar(%mul_20, 2)           # ((v-1)*pi)^2
+#   %add_15  = aten.add.Tensor(%pow_2, 1)                   # 1 + ((v-1)*pi)^2
+#   %reciprocal_1 = aten.reciprocal.default(%add_15)        # 1 / (1 + ((v-1)*pi)^2)
+#   %mul_21  = aten.mul.Tensor(%reciprocal_1, 1.0)          # * 1.0 (alpha/2 = 1.0)
+#   %mul_22  = aten.mul.Tensor(%mul_21, %add_14)            # * chain_grad
+#   %add_16  = aten.add.Tensor(%mul_18, %mul_22)            # 两项加总
+#   %div_3   = aten.div.Tensor(%add_16, 2.0)                # /2.0 (对应 alpha=2.0 的最终因子)
+#
+# -- BatchNorm Backward 计算部分 --
+#   %squeeze = aten.squeeze.dims(%getitem_1, [0, 2, 3])     # 取 BN 均值
+#   %sub_7   = aten.sub.Tensor(%convolution, %unsqueeze_6)  # X - mean
+#   %mul_24  = aten.mul.Tensor(%sum_2, 0.000318877...)      # 1/N 归一化
+#   %mul_26  = aten.mul.Tensor(%squeeze_1, %squeeze_1)      # rsqrt^2
+#   %mul_27  = aten.mul.Tensor(%mul_25, %mul_26)
+#   %mul_29  = aten.mul.Tensor(%sub_7, %unsqueeze_12)
+#   %sub_9   = aten.sub.Tensor(%div_3, %mul_29)
+#   %sub_10  = aten.sub.Tensor(%sub_9, %unsqueeze_9)
+#   %mul_30  = aten.mul.Tensor(%sub_10, %unsqueeze_15)      # * gamma/std
+#
+# ============================================================
+# 注意：这里 Inductor 将 ATan 反向 + BatchNorm 反向 + MaxPool 反向
+# 共同融合（Kernel Fusion）进了 同一个 Triton Kernel 中，
+# 而不是为每个 aten 算子创建单独的 Kernel！这就是算子融合的核心。
+# ============================================================
