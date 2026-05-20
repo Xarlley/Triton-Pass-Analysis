@@ -1,14 +1,14 @@
 # Triton Pass Analysis & SNN Optimization
 
-本仓库是一个针对 [Triton 编译器 (triton-lang/triton)](https://github.com/triton-lang/triton) 的深度技术解析与定制化优化项目。它不仅提供了对于 Triton 将 Python 代码逐级编译为高效 GPU 机器码的全面剖析，还**实战演示了如何开发一个专门针对脉冲神经网络（SNN）的时空拆分 Triton Pass**。
+本仓库是一个针对 [Triton 编译器 (triton-lang/triton)](https://github.com/triton-lang/triton) 的深度技术解析与定制化优化项目。它不仅提供了对于 Triton 将 Python 代码逐级编译为高效 GPU 机器码的全面剖析，还**演示了如何为脉冲神经网络（SNN）优化搭建一个自定义 Triton Pass 的开发骨架**（标记传递与条件性插入链路；面向 SNN 的时空拆分优化本身仍在开发中）。
 
 ## 🎯 核心内容
 
 1. **核心优化 Pass 深度剖析 (`Document/Passes/*.md`)**
    对 Triton 源码中位于 `lib/Dialect/TritonGPU/Transforms` 目录下的 19 个核心优化 Pass（C++ 代码）进行了结构化的 Markdown 代码分析。涵盖了从共享内存的内存合并访存（Coalescing）、寄存器层面的 Tensor Core 降级（AccelerateMatmul），到全局的控制流融合和延迟隐藏（Prefetching / Pipelining）等编译器核心原理。
    
-2. **SNN 时空拆分自定义 Pass 实践 (`Document/SNN_Pass_Execution_Analysis.md`)**
-   基于真实的 VGG16 网络需求，我们在 Triton 编译器后端实现了一个定制化的 C++ MLIR Pass（即 `MyNoOpPass` 的升级版）。该 Pass 能够在编译期对 SNN 的时间步（Time Steps）和空间神经元（SM 寄存器限制）进行智能拆分优化。您可以通过阅读这份执行报告了解它的设计逻辑以及阶段性的 IR（中间表示）演变过程。
+2. **SNN 自定义 Pass 骨架与触发链路 (`Document/SNN_Pass_Execution_Analysis.md`)**
+   我们在 Triton 编译器后端搭建了一个自定义 C++ MLIR Pass（`MyNoOpPass`）作为 SNN 优化的开发骨架，并打通了 `SNN_FLAG` / `ENABLE_SNN_PASS` 的条件性插入链路。**目前该 Pass 仅为占位实现**：它会打印各阶段 IR 并写入两个 Module 属性，**尚未实现真正的时间拆分与空间拆分**（详见 `dev-log/dev-plan.md` 第 2.1 节）。该文档如实记录了这个 Pass 当前的行为与待办事项。
 
 3. **编译全流程调用树 (`Document/compiler.md`)**
    分析了 Triton 编译器前端的调用总控点 `python/triton/compiler/compiler.py` 以及后端 `third_party/nvidia/backend/compiler.py`，并构建了**从上层 Python 算子到下层 LLVM IR 生成的完整代码调用关系图**，精确标注了每一个优化 Pass 发挥作用的时机。
@@ -41,11 +41,11 @@ git submodule update --init --recursive
 - `Document/`：包含所有关于 Pass 的 Markdown 分析报告及文档。
   - `compiler.md`：核心阅读起点，包含了总体调用流程树。
   - `CallStack.md`：从 `torch.compile` 到 Triton 优化 Pass 的完整运行时函数调用栈。
-  - `SNN_Pass_Execution_Analysis.md`：本轮最新研发的 SNN 时空拆分 Pass 的执行效果详细分析。
+  - `SNN_Pass_Execution_Analysis.md`：自定义 SNN Pass（`MyNoOpPass` 占位实现）当前行为的如实记录及与开发计划的差距说明。
   - `Passes/`：包含 `AccelerateMatmul.md`、`Coalesce.md` 等 19 份详细的官方优化 Pass 源码级剖析。
 - `examples/`：包含了所有的测试与运行脚本。
   - `spikingjelly_triton/`：展示如何将 SpikingJelly 的计算逻辑通过 `torch.compile` 下发给 Triton 进行编译的溯源示例代码。
-  - `vgg16_snn/`：**包含触发我们自定义 SNN 拆分 Pass 的 VGG16 测试套件**（`vgg16_test.py` 和 `test_snn_split.py`）。
+  - `vgg16_snn/`：**用于触发自定义 SNN 占位 Pass（`MyNoOpPass`）的 VGG16 测试套件**（`vgg16_test.py` 和 `test_snn_split.py`）。
 - `dev-log/`：开发日志与任务分解计划记录（如 `dev-plan.md`）。
 - `triton/`：(Submodule) 包含了自定义 SNN 优化 Pass 的 Triton 源代码。
 - `spikingjelly/`：(Submodule) 用于示例和分析的 SpikingJelly 源代码。
