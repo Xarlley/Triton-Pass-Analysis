@@ -18,6 +18,12 @@
 - **完整编译调用栈 (`Document/CallStack.md`)**
   在真实 CUDA 环境运行 SNN 示例，用 `sys.settrace` 截获从 `torch.compile` 经由 TorchDynamo、AOTAutograd、TorchInductor 到 Triton 编译器各阶段的完整函数调用链，标注每个核心函数的精确源文件位置与行号。
 
+- **真实 kernel 的逐 Pass IR 变换跟踪与优化洞察 (`Document/IR-Trace/`)**
+  对真实 VGG16-SNN 推理中的 4 个代表性 Triton kernel（卷积、BN+LIF、MaxPool、矩阵乘法），逐 Pass 记录其 IR 从 TTIR → TTGIR → LLVM IR 的每一次变换（104 篇变换文档；捕获采用确定性重放，并与真实运行的 TTGIR / PTX 逐字节对账）。在此之上还有三篇专题分析：
+  - `Optimization-Insights.md` —— 时间步结构、寄存器溢出等关键事实核查，及对 §2.1 的启示；
+  - `All-Kernels.md` —— 一次真实推理生成的全部 48 个 Triton kernel 的完整代码；
+  - `Inductor-Tile-Register-Strategy.md` —— 结合 PyTorch 源码讲解 tile 决策与寄存器分配策略。
+
 ### 二、面向 SNN 的自定义 Pass 开发
 
 - **自定义 Pass 骨架与触发链路**
@@ -48,8 +54,14 @@ Document/                            编译原理分析与经验文档
 ├── CallStack.md                     torch.compile → Triton 运行时调用栈
 ├── SNN_Pass_Execution_Analysis.md   自定义 SNN Pass 当前行为的如实记录
 ├── Passes/                          19 份官方优化 Pass / 工具模块的源码级剖析
-└── Skill/                           通用诊断与调优经验
-    └── full-triton-compilation.md   让 SpikingJelly SNN 完整走 Triton 编译
+├── Skill/                           通用诊断与调优经验
+│   └── full-triton-compilation.md   让 SpikingJelly SNN 完整走 Triton 编译
+└── IR-Trace/                        真实 VGG16-SNN 代表 kernel 的逐 Pass IR 变换跟踪
+    ├── README.md                    方法、等价性保证与流水线总览
+    ├── Optimization-Insights.md     关键事实核查（时间步结构 / 寄存器溢出）与 §2.1 启示
+    ├── All-Kernels.md               一次真实推理生成的全部 48 个 Triton kernel 完整代码
+    ├── Inductor-Tile-Register-Strategy.md   tile 决策与寄存器分配策略（TorchInductor 源码级）
+    └── {convolution,bn_lif,maxpool,matmul}/   每 kernel：索引 + 逐 Pass 变换文档 + 各阶段 IR
 
 examples/                            测试与示例脚本
 ├── spikingjelly_triton/             SpikingJelly → torch.compile → Triton 溯源示例
@@ -67,6 +79,7 @@ dev-log/                             开发日志与计划
 
 triton/        (Submodule)           含自定义 SNN Pass 的定制版 Triton
 spikingjelly/  (Submodule)           示例与分析所用的 SpikingJelly
+pytorch/       (Submodule)           TorchInductor 源码分析所用的 PyTorch
 ```
 
 ## 🚧 SNN Pass 开发进度
@@ -95,6 +108,7 @@ python examples/vgg16_snn/vgg16_test.py
 
 - **`triton/`** —— 定制版 Triton。基于官方主线 `5d69e1cf4` 切出 `snn-optimization` 分支，所有 C++ / Python 层的改动（含自定义 Pass）均保存在该分支。
 - **`spikingjelly/`** —— 示例与分析所用的 SpikingJelly。
+- **`pytorch/`** —— TorchInductor 源码分析所用的 PyTorch，固定在已安装运行版本对应的 commit `70d99e9`（torch 2.11.0）。用于 `Document/IR-Trace/Inductor-Tile-Register-Strategy.md` 中对 tile / 寄存器策略的源码级讲解。
 
 克隆本仓库时加上 `--recursive`，或在克隆后执行：
 

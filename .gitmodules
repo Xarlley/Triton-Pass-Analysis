@@ -5,3 +5,6 @@
 [submodule "spikingjelly"]
 	path = spikingjelly
 	url = https://github.com/fangwei123456/spikingjelly.git
+[submodule "pytorch"]
+	path = pytorch
+	url = https://github.com/pytorch/pytorch.git
