@@ -21,9 +21,10 @@ LLVM IR / PTX。
 每一次真实 IR 变换的详细说明；`stage_*.{ttir,ttgir,llir,ptx,sass}` 是各阶段完整 IR
 产物。
 
-**[`Optimization-Insights.md`](./Optimization-Insights.md)** —— 基于本跟踪记录的关键
-事实核查：时间步循环是否还存在、能否精确界定时间步、膜电位是否导致寄存器溢出，并结合
-具体 IR 给出对 `dev-log/dev-plan.md` §2.1 的启示。
+**[`Optimization-Insights.md`](./Optimization-Insights.md)** —— 基于本跟踪记录与真实
+训练 SNN 的关键事实核查：时间步循环是否还存在、能否精确界定时间步、膜电位是否导致
+寄存器溢出、80% 的脉冲稀疏度能否被 GPU 利用，并据此给出对 `dev-log/dev-plan.md`
+§2.1 / §2.2 各优化思路的实测结论。
 
 **[`All-Kernels.md`](./All-Kernels.md)** —— 一次真实推理生成的**全部 48 个 Triton
 kernel 的完整代码**，解释为何只有少数几种「操作」的网络会编译出 48 个 kernel。

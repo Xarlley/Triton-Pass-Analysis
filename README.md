@@ -20,7 +20,7 @@
 
 - **真实 kernel 的逐 Pass IR 变换跟踪与优化洞察 (`Document/IR-Trace/`)**
   对真实 VGG16-SNN 推理中的 4 个代表性 Triton kernel（卷积、BN+LIF、MaxPool、矩阵乘法），逐 Pass 记录其 IR 从 TTIR → TTGIR → LLVM IR 的每一次变换（104 篇变换文档；捕获采用确定性重放，并与真实运行的 TTGIR / PTX 逐字节对账）。在此之上还有三篇专题分析：
-  - `Optimization-Insights.md` —— 时间步结构、寄存器溢出等关键事实核查，及对 §2.1 的启示；
+  - `Optimization-Insights.md` —— 时间步结构、寄存器溢出、脉冲稀疏度等关键事实核查，及对 §2.1 / §2.2 各优化思路的实测结论；
   - `All-Kernels.md` —— 一次真实推理生成的全部 48 个 Triton kernel 的完整代码；
   - `Inductor-Tile-Register-Strategy.md` —— 结合 PyTorch 源码讲解 tile 决策与寄存器分配策略。
 
@@ -58,7 +58,7 @@ Document/                            编译原理分析与经验文档
 │   └── full-triton-compilation.md   让 SpikingJelly SNN 完整走 Triton 编译
 └── IR-Trace/                        真实 VGG16-SNN 代表 kernel 的逐 Pass IR 变换跟踪
     ├── README.md                    方法、等价性保证与流水线总览
-    ├── Optimization-Insights.md     关键事实核查（时间步结构 / 寄存器溢出）与 §2.1 启示
+    ├── Optimization-Insights.md     关键事实核查（时间步 / 寄存器 / 脉冲稀疏度）与 §2.1·§2.2 结论
     ├── All-Kernels.md               一次真实推理生成的全部 48 个 Triton kernel 完整代码
     ├── Inductor-Tile-Register-Strategy.md   tile 决策与寄存器分配策略（TorchInductor 源码级）
     └── {convolution,bn_lif,maxpool,matmul}/   每 kernel：索引 + 逐 Pass 变换文档 + 各阶段 IR
@@ -87,8 +87,7 @@ pytorch/       (Submodule)           TorchInductor 源码分析所用的 PyTorch
 详见 `dev-log/dev-plan.md`。
 
 - [x] **准备工作** —— `SNN_FLAG` 从 `@triton.jit` 到编译后端的端到端打通、Pass 的条件性插入（已通过 `test_triton.py` 验证）。
-- [ ] **§2.1 时间拆分与空间拆分** —— 开发中。
-- [ ] **§2.2 符号重物质化** —— 待开发。
+- [x] **§2.1 / §2.2 优化思路可行性核查** —— 时间拆分、空间拆分、（膜电位的）符号重物质化、块级零值检测四条思路，经源码级核查与真实训练 SNN（top-1≈46.6% 的 T=4 ImageNet VGG16-SNN）的实测级核查，**均判定不值得或不可行**：或处于错误的优化层级（应在 TorchInductor 图层而非 TritonGPU Pass），或收益不足以覆盖代价（脉冲张量虽 80% 为零，可整块跳过的工作量仅 1.6%）。完整论证见 [`Document/IR-Trace/Optimization-Insights.md`](Document/IR-Trace/Optimization-Insights.md)。
 
 ## ⚙️ 构建与运行
 
