@@ -8,3 +8,9 @@
 [submodule "pytorch"]
 	path = pytorch
 	url = https://github.com/pytorch/pytorch.git
+[submodule "nir"]
+	path = nir
+	url = https://github.com/neuromorphs/NIR.git
+[submodule "nirtorch"]
+	path = nirtorch
+	url = https://github.com/neuromorphs/NIRTorch.git
