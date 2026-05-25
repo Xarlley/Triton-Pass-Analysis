@@ -84,3 +84,52 @@ NVIDIA DRIVER 570.169 不支持新的代码:
 RuntimeError: The NVIDIA driver on your system is too old (found version 12080). Please update your GPU driver by downloading and installing a new version from the URL:
 ```
 于是换用了 NVIDIA DRIVER 595.71.05。旧驱动运行不了新CUDA的代码。CUDA从12.8升级到13.1就出发了这个问题。
+
+## 安装 nir / nirtorch / spikingjelly（editable，从仓库 submodule）
+
+仓库根目录已把 `nir`（neuromorphs/NIR）、`nirtorch`（neuromorphs/NIRTorch）、`spikingjelly`（PKU/MLG）三者都纳入 submodule，便于分析源码与本地修改。装成 editable：
+
+```bash
+conda activate triton-dev-cuda131
+# 务必加 --no-deps：见下方 ⚠️
+pip install --no-deps -e /home/charlley/Code/Triton-Pass-Analysis/nir \
+                     -e /home/charlley/Code/Triton-Pass-Analysis/nirtorch \
+                     -e /home/charlley/Code/Triton-Pass-Analysis/spikingjelly
+```
+
+⚠️ **大坑：本 env 里几乎任何 `pip install`（不带 `--no-deps`）都会把本地 editable 的 `triton 3.7.0+gitXXXX`（我们的 fork）卸掉，换成 PyPI 上的 `triton 3.6.0`。**
+
+实际踩过两次：
+1. `pip install -e ./nir -e ./nirtorch` → 卸掉 triton fork
+2. `pip install -e ./spikingjelly`（哪怕被装的包本身和 triton 无关）→ 又卸掉 triton fork
+
+根因：本地 `triton-3.7.0+gitef02d646` 含 `+local` 版本后缀。**只要 pip 解析到的依赖链里出现 `triton`（torch 2.11 把它声明为 runtime dep），pip resolver 就会判定本地版"不符合常规约束"，强行 downgrade 到 PyPI 上能直接拉到的 `3.6.0`**，并装上对应 wheel；pip 输出里会显式打印：
+
+```
+Attempting uninstall: triton
+  Found existing installation: triton 3.7.0+gitef02d646
+  Uninstalling triton-3.7.0+gitef02d646
+Successfully installed ... triton-3.6.0 ...
+```
+
+被替换后，本仓库基于自定义 Triton Pass 的所有工作流（`TRITON_ALWAYS_COMPILE=1`、SNN Pass、autotune=TRITON 等）全部失效。
+
+**预防：** 在本 env 里装任何 editable / 第三方包时都加 `--no-deps`，让 pip 只动当前包不要碰其他东西（包括 triton）。需要的 runtime 依赖（torch、numpy、h5py、tqdm、tensorboard、pydantic 等）单独 `pip install` 一遍即可，那次允许 pip 拉依赖但显式把 triton 排除掉，例如：
+
+```bash
+pip install h5py tqdm tensorboard pydantic SciencePlots
+```
+
+**事后回滚 triton fork：**
+
+```bash
+# 1. 先卸掉 PyPI 那个 3.6.0
+pip uninstall -y triton
+
+# 2. 走完整重建脚本（fast-path 不可用：跳过 clean 时 cmake 报
+#    "TRITON_CACHE_PATH must be set or derivable" —— build 目录内的旧
+#    CMakeCache.txt 会和新一轮 -D 参数冲突，目前必须全量重建）
+bash /home/charlley/Code/Triton-Pass-Analysis/dev-log/build_triton.sh
+```
+
+完事用 `python -c "import triton, sys; print(triton.__version__ if hasattr(triton, '__version__') else 'no attr'); import pkg_resources; print(pkg_resources.get_distribution('triton').version)"` 验，应该看到 `3.7.0+git<hash>` 而不是 `3.6.0`。或直接 `pip show triton | grep -i version`。

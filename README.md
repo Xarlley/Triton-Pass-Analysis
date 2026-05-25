@@ -1,9 +1,10 @@
 # Triton Pass Analysis & SNN Optimization
 
-本仓库是一个针对 [Triton 编译器 (triton-lang/triton)](https://github.com/triton-lang/triton) 的深度技术解析与定制化优化项目，包含两条主线：
+本仓库是一个针对 [Triton 编译器 (triton-lang/triton)](https://github.com/triton-lang/triton) 的深度技术解析与定制化优化项目，包含三条主线：
 
 1. **编译原理剖析** —— 系统梳理 Triton 如何把 Python 算子逐级编译为 GPU 机器码，并对其核心优化 Pass 做源码级分析。
 2. **面向 SNN 的自定义 Pass 开发** —— 在 Triton 后端搭建一个针对脉冲神经网络（SNN）推理加速的自定义 MLIR Pass。目前已完成「准备工作」（SNN 标记的端到端打通与 Pass 的条件性插入），真正的时空拆分优化仍在开发中。
+3. **NIR 跨框架表达探索与对照实验** —— 评估 SpikingJelly 在 [NIR](https://neuroir.org/) 协议上的表达能力，用 NIR 重新实现同一个 VGG16-SNN，对比 eager / torch.compile+全 Triton / NIR roundtrip 三条算子后端组合的推理延迟与显存特性。
 
 ## 🎯 核心内容
 
@@ -38,13 +39,31 @@
 - **可复现的 VGG16-SNN 基准 (`examples/vgg16_snn/`)**
   一个标准结构的 VGG16 脉冲神经网络（13 卷积 + 3 全连接，基于 SpikingJelly）。使用固定保存的随机权重与输入，保证每次推理输出逐位一致；并已配置为整个模型**完整经由 Triton 编译**（无 eager 回退、无 cuDNN/cuBLAS extern kernel）。作为后续 Pass 开发验证 IR 正确性的黄金基准。
 
-### 三、方法与经验沉淀
+### 三、NIR 跨框架表达探索与对照实验
+
+[NIR (Neuromorphic Intermediate Representation)](https://neuroir.org/) 是一种跨神经形态框架/硬件的中间表示协议。本仓库系统评估了 SpikingJelly 在 NIR 上的表达能力，并把同一个 VGG16-SNN 用 NIR 重新实现作为对照实验，揭示「`torch.compile` + 全 Triton」与「eager + cuDNN」两条算子后端组合在小批量推理场景下的性能差距。
+
+- **NIR 表达能力评估**
+  基于 SpikingJelly 自带的 `nir_exchange` 包，逐算子核查 VGG16-SNN 在 NIR 协议下的可表达性。结论：BatchNorm 必须 fold（NIR 协议无 BN 原语）、MaxPool 必须替换为 AvgPool（NIR 协议无 MaxPool 原语），Conv / Linear / Flatten / IF / LIF 等可无损映射；soft reset 在 NIR 协议下会被强制写成硬复位（v_reset=0）。
+
+- **NIR 版 VGG16-SNN 实现 (`examples/vgg16_snn/vgg16_via_nir.py`)**
+  构造 BN + AvgPool 单步网络 → `fuse_conv_bn_eval_modules` 折 BN → `export_to_nir` → `import_from_nir(device='cuda', step_mode='m')` → 在 RTX 5070 Ti 上完成端到端多步推理。
+
+- **三种实现方式对照 (`examples/vgg16_snn/benchmark_compare.py` + [`Implementation-Modes.md`](examples/vgg16_snn/Implementation-Modes.md))**
+  在同一台机器、同一份输入下对比 eager / torch.compile + 全 Triton / NIR roundtrip 三条路径，跨 `BATCH=1/32/40/50/56` 测量平均推理延迟与显存上限。三路径的算子后端归宿、`fx.GraphModule.forward` → `libcudnn.so.9` 的六层完整调用栈、按 layer 的库归属都在文档里列清。
+
+- **SpikingJelly 兼容性补丁 ([`SpikingJelly-Triton-Patch.md`](examples/vgg16_snn/SpikingJelly-Triton-Patch.md))**
+  定位并修复 SpikingJelly 手写多步 LIF / IF / PLIF Triton kernel 在本仓库 Triton fork 上的 `convert_and_store` 块指针 dtype API 不兼容（双层 `.element_ty` → 单层），修复后 SpikingJelly 的 fused-T-loop LIF Triton kernel 在三条路径上都能正常工作。本仓库已 fork SpikingJelly 仓库，相关补丁固化在 `Xarlley/spikingjelly` 的 `triton-fork-compat` 分支。
+
+### 四、方法与经验沉淀
 
 - **端到端追踪示例 (`examples/spikingjelly_triton/`)**
   展示 SpikingJelly 的脉冲计算逻辑如何被 `torch.compile` 动态追踪、编译，并附带各阶段 IR / PTX 的导出产物（`analysis/`）。
 
 - **技能文档 (`Document/Skill/`)**
-  沉淀通用的诊断与调优方法。当前收录 `full-triton-compilation.md`：如何诊断并让一个 SpikingJelly SNN 完整走 Triton 编译——图中断、`recompile_limit`、extern kernel 三类问题的成因（基于 SpikingJelly 源码）与解法。
+  沉淀通用的诊断与调优方法。当前收录：
+  - `full-triton-compilation.md` —— 如何诊断并让一个 SpikingJelly SNN 完整走 Triton 编译（图中断、`recompile_limit`、extern kernel 三类问题的成因与解法）。
+  - `audit-full-triton-path.md` —— 全 Triton 路径的端到端审计程序（10 个独立可观测指标 + 一段一键 grep + 一份 PASS/FAIL bash 脚本），保证「自定义 Pass 作用于整网」这条假设的可重复验证。
 
 ## 📂 目录结构
 
@@ -55,7 +74,8 @@ Document/                            编译原理分析与经验文档
 ├── SNN_Pass_Execution_Analysis.md   自定义 SNN Pass 当前行为的如实记录
 ├── Passes/                          19 份官方优化 Pass / 工具模块的源码级剖析
 ├── Skill/                           通用诊断与调优经验
-│   └── full-triton-compilation.md   让 SpikingJelly SNN 完整走 Triton 编译
+│   ├── full-triton-compilation.md   让 SpikingJelly SNN 完整走 Triton 编译
+│   └── audit-full-triton-path.md    全 Triton 路径端到端审计（10 项指标 + PASS/FAIL 脚本）
 └── IR-Trace/                        真实 VGG16-SNN 代表 kernel 的逐 Pass IR 变换跟踪
     ├── README.md                    方法、等价性保证与流水线总览
     ├── Optimization-Insights.md     关键事实核查（时间步 / 寄存器 / 脉冲稀疏度）与 §2.1·§2.2 结论
@@ -70,6 +90,11 @@ examples/                            测试与示例脚本
 │   └── test_triton.py               SNN_FLAG 条件触发测试
 └── vgg16_snn/
     ├── vgg16_test.py                可复现、全 Triton 编译的 VGG16-SNN 基准
+    ├── vgg16_via_nir.py             NIR roundtrip 版 VGG16-SNN（BN-folded + AvgPool）
+    ├── benchmark_inference.py       ImageNet val 上 N 张样本的延迟测量（COMPILE=1 切全 Triton）
+    ├── benchmark_compare.py         三条路径在同一输入上做 100-iter 平均对比（支持 BATCH 参数）
+    ├── Implementation-Modes.md      三条实现路径的代码走读、cuDNN 调用栈、BATCH 调参指南
+    ├── SpikingJelly-Triton-Patch.md SpikingJelly 自带 LIF Triton kernel 与本仓库 fork 的兼容性补丁
     └── test_snn_split.py            触发 SNN Pass 的小 kernel
 
 dev-log/                             开发日志与计划
@@ -77,9 +102,11 @@ dev-log/                             开发日志与计划
 ├── dev-log.md                       定制版 Triton 构建踩坑记录
 └── build_triton.sh                  定制版 Triton 的一键清理重建脚本
 
-triton/        (Submodule)           含自定义 SNN Pass 的定制版 Triton
-spikingjelly/  (Submodule)           示例与分析所用的 SpikingJelly
+triton/        (Submodule)           含自定义 SNN Pass 的定制版 Triton (Xarlley fork)
+spikingjelly/  (Submodule)           SpikingJelly (Xarlley fork, triton-fork-compat 分支)
 pytorch/       (Submodule)           TorchInductor 源码分析所用的 PyTorch
+nir/           (Submodule)           NIR 协议参考实现 (neuromorphs/NIR)
+nirtorch/      (Submodule)           NIRTorch 参考实现 (neuromorphs/NIRTorch)
 ```
 
 ## 🚧 SNN Pass 开发进度
@@ -105,9 +132,11 @@ python examples/vgg16_snn/vgg16_test.py
 
 为保证文档分析与实际代码逐行对应、可复现，本仓库以 Git Submodule 形式挂载相关源码：
 
-- **`triton/`** —— 定制版 Triton。基于官方主线 `5d69e1cf4` 切出 `snn-optimization` 分支，所有 C++ / Python 层的改动（含自定义 Pass）均保存在该分支。
-- **`spikingjelly/`** —— 示例与分析所用的 SpikingJelly。
+- **`triton/`** —— 定制版 Triton (Xarlley fork)。基于官方主线 `5d69e1cf4` 切出 `snn-optimization` 分支，所有 C++ / Python 层的改动（含自定义 Pass）均保存在该分支。
+- **`spikingjelly/`** —— 定制版 SpikingJelly (Xarlley fork)。`triton-fork-compat` 分支基于上游 master，补上一处针对本仓库 Triton fork 块指针 dtype 新 API 的兼容性修补（双层 `.element_ty` → 单层，详见 [`SpikingJelly-Triton-Patch.md`](examples/vgg16_snn/SpikingJelly-Triton-Patch.md)）。
 - **`pytorch/`** —— TorchInductor 源码分析所用的 PyTorch，固定在已安装运行版本对应的 commit `70d99e9`（torch 2.11.0）。用于 `Document/IR-Trace/Inductor-Tile-Register-Strategy.md` 中对 tile / 寄存器策略的源码级讲解。
+- **`nir/`** —— [NIR](https://github.com/neuromorphs/NIR) 协议参考实现，供 §三 NIR 表达能力评估直接读源码。
+- **`nirtorch/`** —— [NIRTorch](https://github.com/neuromorphs/NIRTorch) 参考实现，SpikingJelly 的 `nir_exchange` 通过它做 fx tracing 与 NIR ↔ PyTorch 双向重建。
 
 克隆本仓库时加上 `--recursive`，或在克隆后执行：
 
