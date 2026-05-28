@@ -1,0 +1,7 @@
+     39 .flatten(
+     38 .view(
+     30 torch.full_like(
+     30 .clone(
+     19 .forward(
+     15 torch.ops.sj.multistep_lif_inference.default(
+      3 torch._C._nn.linear(

@@ -1,0 +1,43 @@
+# Path B 全 Triton 路径里 BN-fused-into-conv-epilogue 的真实 TTIR 算术 body
+# 取自 Inductor 临时目录 /tmp/torchinductor_charlley/tmpfb1s6are/triton/<hash>/
+# kernel: triton_poi_fused__native_batch_norm_legit_no_training_convolution_full_like_max_pool2d_with_indices_view_19
+# 证明: BN 算术（sqrt + 5 个 mul/add）在 GPU 上每次推理都跑，没被 Inductor 常量折叠
+
+源文件: /tmp/torchinductor_charlley/tmpfb1s6are/triton/ZJMQIYSYITDEDSD5FUS2XSZ6CQZE7R57FK3FNKZS6LX7PA4LS5QA/triton_poi_fused__native_batch_norm_legit_no_training_convolution_full_like_max_pool2d_with_indices_view_19.ttir
+
+## 6 个输入指针 (in_ptr0..in_ptr5):
+##   in_ptr0 = conv_out (上一层 conv 输出)
+##   in_ptr1 = conv_bias
+##   in_ptr2 = running_mean (BN)
+##   in_ptr3 = running_var  (BN)
+##   in_ptr4 = weight (gamma, BN)
+##   in_ptr5 = bias   (beta,  BN)
+
+## BN 算术体 (sqrt + 5 个 fp32 算子):
+    %tmp2 = arith.addf %tmp0_15, %tmp1_17 : tensor<1024x1xf32> loc(#loc70)
+    %tmp4 = arith.subf %tmp2, %tmp3_19 : tensor<1024x1xf32> loc(#loc71)
+    %tmp7_26 = arith.addf %tmp5_21, %tmp7 : tensor<1024x1xf32> loc(#loc49)
+    %tmp8 = tt.precise_sqrt %tmp7_26 : tensor<1024x1xf32> loc(#loc72)
+    %tmp10_27 = arith.divf %tmp10, %tmp8 : tensor<1024x1xf32> loc(#loc48)
+    %tmp13 = arith.mulf %tmp4, %tmp10_27 : tensor<1024x1xf32> loc(#loc73)
+    %tmp15 = arith.mulf %tmp13, %tmp14_23 : tensor<1024x1xf32> loc(#loc74)
+    %tmp17 = arith.addf %tmp15, %tmp16_25 : tensor<1024x1xf32> loc(#loc75)
+
+
+# 同位置的 NIR-compile kernel: triton_poi_fused_convolution_full_like_view_3
+# (fold-BN 后 GPU 完全不跑 BN，只剩 conv_out + conv_bias 加法)
+## 算术体仅 1 行:
+##   tmp2 = tmp0 + tmp1            ; conv_out + conv_bias (bias 里已含 BN 等价系数)
+
+
+# 全仓库统计:
+  tmp9xrd260v:  total_ttir=369  含 sqrt 的=0
+  tmpd8u0umnt:  total_ttir=369  含 sqrt 的=30
+  tmpds2hrsfk:  total_ttir=369  含 sqrt 的=0
+  tmpfb1s6are:  total_ttir=369  含 sqrt 的=30
+  tmpfgt4tty5:  total_ttir=369  含 sqrt 的=30
+  tmpn86726_m:  total_ttir=369  含 sqrt 的=0
+  tmprka_i60b:  total_ttir=369  含 sqrt 的=0
+  tmpsydzmni1:  total_ttir=369  含 sqrt 的=30
+  tmpuu3bid_b:  total_ttir=369  含 sqrt 的=0
+  tmpzqynxi4v:  total_ttir=369  含 sqrt 的=0

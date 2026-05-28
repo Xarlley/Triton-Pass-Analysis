@@ -1,0 +1,54 @@
+# FX Graph 同形性实测证据 (NIR-compile vs SJ-direct)
+# 抓取方法: TORCH_LOGS='graph_code,aot_graphs' MODE=NIR/SJ python cold_start_10k_compare.py
+
+## 1) dynamo 阶段算子直方图
+
+### NIR-compile
+     39 .flatten(
+     38 .view(
+     30 torch.full_like(
+     30 .clone(
+     19 .forward(
+     15 torch.ops.sj.multistep_lif_inference.default(
+      3 torch._C._nn.linear(
+      2 torch.ones(
+
+### SJ-direct
+     39 .flatten(
+     38 .view(
+     30 torch.full_like(
+     30 .clone(
+     19 .forward(
+     15 torch.ops.sj.multistep_lif_inference.default(
+      3 torch._C._nn.linear(
+
+### 唯一差异
+  NIR 多 2 次 'torch.ones(' (来自 nirtorch 自动生成 forward 头部的
+   ones = torch.ones(1); ones = None 死代码)
+  其他 7 类算子出现次数完全相同
+
+
+## 2) AOT forward graph 全文
+
+两路 AOT forward graph body 各 362 行 (见 aot_forward_body_{nir,sj}.txt)
+
+### 规范化变量名后 diff
+  完全为空 (diff 0 行) —— 同形
+
+### 不规范化的原始 diff
+  132/724 行不同 (~18%)，差异**全部**位于变量编号 (full vs full_1, full_1 vs full_2 等)
+  根因: NIR dynamo 阶段多了 dead torch.ones 让 SSA counter 多走 1 步
+
+
+## 3) LIF custom_op 调用参数同字段对比 (两路完全相同)
+
+        triton_kernel_wrapper_functional_proxy = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 15, grid = [(1404928, 1, 1), (702464, 1, 1), (702464, 1, 1), (351232, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_1, 'v_init_ptr': full_1, 's_seq_ptr': empty, 'h_seq_ptr': empty_1, 'v_seq_ptr': empty_1, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 179830784, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_1 = full_1 = empty = empty_1 = None
+
+  参数: kernel_idx=0, constant_args_idx=15, grid=[(1404928,1,1),(702464,1,1),(702464,1,1),(351232,1,1)]
+        kwargs: tau=2.0, v_threshold=1.0, v_reset=0.0, T=4, NCL=179830784
+                decay_input=True, soft_reset=False, save_intermediates=False
+
+
+## 结论
+  Inductor 实际收到的 FX 图两路严格等价 (modulo SSA 变量命名差 1)。
+  这正是 §7.7 三路实测延迟在噪声内不可区分的根因 —— 最终编译产物完全相同。

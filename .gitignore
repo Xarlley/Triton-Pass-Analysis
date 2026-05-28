@@ -1,0 +1,13 @@
+# Claude Code IDE 本地配置（个人 / 机器相关，不入 repo）
+claude/
+.claude/
+
+# Python 字节码
+__pycache__/
+*.pyc
+*.pyo
+
+# 编辑器
+.vscode/
+.idea/
+*.swp

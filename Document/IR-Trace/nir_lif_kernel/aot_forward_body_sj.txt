@@ -1,0 +1,362 @@
+    def forward(self, arg0_1: "f32[4, 56, 3, 224, 224][8429568, 150528, 50176, 224, 1]cuda:0", arg1_1: "f32[64, 3, 3, 3][27, 9, 3, 1]cuda:0", arg2_1: "f32[64][1]cuda:0", arg3_1: "f32[64, 64, 3, 3][576, 9, 3, 1]cuda:0", arg4_1: "f32[64][1]cuda:0", arg5_1: "f32[128, 64, 3, 3][576, 9, 3, 1]cuda:0", arg6_1: "f32[128][1]cuda:0", arg7_1: "f32[128, 128, 3, 3][1152, 9, 3, 1]cuda:0", arg8_1: "f32[128][1]cuda:0", arg9_1: "f32[256, 128, 3, 3][1152, 9, 3, 1]cuda:0", arg10_1: "f32[256][1]cuda:0", arg11_1: "f32[256, 256, 3, 3][2304, 9, 3, 1]cuda:0", arg12_1: "f32[256][1]cuda:0", arg13_1: "f32[256, 256, 3, 3][2304, 9, 3, 1]cuda:0", arg14_1: "f32[256][1]cuda:0", arg15_1: "f32[512, 256, 3, 3][2304, 9, 3, 1]cuda:0", arg16_1: "f32[512][1]cuda:0", arg17_1: "f32[512, 512, 3, 3][4608, 9, 3, 1]cuda:0", arg18_1: "f32[512][1]cuda:0", arg19_1: "f32[512, 512, 3, 3][4608, 9, 3, 1]cuda:0", arg20_1: "f32[512][1]cuda:0", arg21_1: "f32[512, 512, 3, 3][4608, 9, 3, 1]cuda:0", arg22_1: "f32[512][1]cuda:0", arg23_1: "f32[512, 512, 3, 3][4608, 9, 3, 1]cuda:0", arg24_1: "f32[512][1]cuda:0", arg25_1: "f32[512, 512, 3, 3][4608, 9, 3, 1]cuda:0", arg26_1: "f32[512][1]cuda:0", arg27_1: "f32[4096, 25088][25088, 1]cuda:0", arg28_1: "f32[4096][1]cuda:0", arg29_1: "f32[4096, 4096][4096, 1]cuda:0", arg30_1: "f32[4096][1]cuda:0", arg31_1: "f32[1000, 4096][4096, 1]cuda:0", arg32_1: "f32[1000][1]cuda:0"):
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view: "f32[224, 3, 224, 224][150528, 50176, 224, 1]cuda:0" = torch.ops.aten.view.default(arg0_1, [224, 3, 224, 224]);  arg0_1 = None
+        convolution: "f32[224, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.convolution.default(view, arg1_1, arg2_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view = arg1_1 = arg2_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_1: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.view.default(convolution, [4, 56, 64, 224, 224]);  convolution = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full: "f32[56, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.full.default([56, 64, 224, 224], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 64, 224, 224], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_1: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 64, 224, 224], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 15, grid = [(1404928, 1, 1), (702464, 1, 1), (702464, 1, 1), (351232, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_1, 'v_init_ptr': full, 's_seq_ptr': empty, 'h_seq_ptr': empty_1, 'v_seq_ptr': empty_1, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 179830784, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_1 = full = empty = empty_1 = None
+        getitem: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = triton_kernel_wrapper_functional_proxy['s_seq_ptr']
+        getitem_1: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = triton_kernel_wrapper_functional_proxy['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_3: "f32[56, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.select.int(getitem_1, 0, -1);  getitem_1 = None
+        clone: "f32[56, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.clone.default(select_3);  select_3 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_3: "f32[224, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.view.default(getitem, [224, 64, 224, 224]);  getitem = None
+        convolution_1: "f32[224, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.convolution.default(view_3, arg3_1, arg4_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_3 = arg3_1 = arg4_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_4: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.view.default(convolution_1, [4, 56, 64, 224, 224]);  convolution_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_1: "f32[56, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.full.default([56, 64, 224, 224], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_2: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 64, 224, 224], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_3: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 64, 224, 224], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_1 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 16, grid = [(1404928, 1, 1), (702464, 1, 1), (702464, 1, 1), (351232, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_4, 'v_init_ptr': full_1, 's_seq_ptr': empty_2, 'h_seq_ptr': empty_3, 'v_seq_ptr': empty_3, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 179830784, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_4 = full_1 = empty_2 = empty_3 = None
+        getitem_2: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_1['s_seq_ptr']
+        getitem_3: "f32[4, 56, 64, 224, 224][179830784, 3211264, 50176, 224, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_1['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_7: "f32[56, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.select.int(getitem_3, 0, -1);  getitem_3 = None
+        clone_1: "f32[56, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.clone.default(select_7);  select_7 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:892 in forward, code: out = super().forward(x.flatten(0, 1))
+        view_6: "f32[224, 64, 224, 224][3211264, 50176, 224, 1]cuda:0" = torch.ops.aten.view.default(getitem_2, [224, 64, 224, 224]);  getitem_2 = None
+        avg_pool2d: "f32[224, 64, 112, 112][802816, 12544, 112, 1]cuda:0" = torch.ops.aten.avg_pool2d.default(view_6, [2, 2], [2, 2]);  view_6 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:893 in forward, code: x = out.view(t, n, *out.shape[1:])
+        view_7: "f32[4, 56, 64, 112, 112][44957696, 802816, 12544, 112, 1]cuda:0" = torch.ops.aten.view.default(avg_pool2d, [4, 56, 64, 112, 112]);  avg_pool2d = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_8: "f32[224, 64, 112, 112][802816, 12544, 112, 1]cuda:0" = torch.ops.aten.view.default(view_7, [224, 64, 112, 112]);  view_7 = None
+        convolution_2: "f32[224, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.convolution.default(view_8, arg5_1, arg6_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_8 = arg5_1 = arg6_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_9: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.view.default(convolution_2, [4, 56, 128, 112, 112]);  convolution_2 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_2: "f32[56, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.full.default([56, 128, 112, 112], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_4: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 128, 112, 112], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_5: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 128, 112, 112], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_2 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 17, grid = [(702464, 1, 1), (351232, 1, 1), (351232, 1, 1), (175616, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_9, 'v_init_ptr': full_2, 's_seq_ptr': empty_4, 'h_seq_ptr': empty_5, 'v_seq_ptr': empty_5, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 89915392, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_9 = full_2 = empty_4 = empty_5 = None
+        getitem_4: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_2['s_seq_ptr']
+        getitem_5: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_2['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_2 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_11: "f32[56, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.select.int(getitem_5, 0, -1);  getitem_5 = None
+        clone_2: "f32[56, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.clone.default(select_11);  select_11 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_11: "f32[224, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.view.default(getitem_4, [224, 128, 112, 112]);  getitem_4 = None
+        convolution_3: "f32[224, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.convolution.default(view_11, arg7_1, arg8_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_11 = arg7_1 = arg8_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_12: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.view.default(convolution_3, [4, 56, 128, 112, 112]);  convolution_3 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_3: "f32[56, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.full.default([56, 128, 112, 112], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_6: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 128, 112, 112], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_7: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 128, 112, 112], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_3 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 18, grid = [(702464, 1, 1), (351232, 1, 1), (351232, 1, 1), (175616, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_12, 'v_init_ptr': full_3, 's_seq_ptr': empty_6, 'h_seq_ptr': empty_7, 'v_seq_ptr': empty_7, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 89915392, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_12 = full_3 = empty_6 = empty_7 = None
+        getitem_6: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_3['s_seq_ptr']
+        getitem_7: "f32[4, 56, 128, 112, 112][89915392, 1605632, 12544, 112, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_3['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_3 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_15: "f32[56, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.select.int(getitem_7, 0, -1);  getitem_7 = None
+        clone_3: "f32[56, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.clone.default(select_15);  select_15 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:892 in forward, code: out = super().forward(x.flatten(0, 1))
+        view_14: "f32[224, 128, 112, 112][1605632, 12544, 112, 1]cuda:0" = torch.ops.aten.view.default(getitem_6, [224, 128, 112, 112]);  getitem_6 = None
+        avg_pool2d_1: "f32[224, 128, 56, 56][401408, 3136, 56, 1]cuda:0" = torch.ops.aten.avg_pool2d.default(view_14, [2, 2], [2, 2]);  view_14 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:893 in forward, code: x = out.view(t, n, *out.shape[1:])
+        view_15: "f32[4, 56, 128, 56, 56][22478848, 401408, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(avg_pool2d_1, [4, 56, 128, 56, 56]);  avg_pool2d_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_16: "f32[224, 128, 56, 56][401408, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(view_15, [224, 128, 56, 56]);  view_15 = None
+        convolution_4: "f32[224, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.convolution.default(view_16, arg9_1, arg10_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_16 = arg9_1 = arg10_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_17: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(convolution_4, [4, 56, 256, 56, 56]);  convolution_4 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_4: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.full.default([56, 256, 56, 56], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_8: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 256, 56, 56], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_9: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 256, 56, 56], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_4 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 19, grid = [(351232, 1, 1), (175616, 1, 1), (175616, 1, 1), (87808, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_17, 'v_init_ptr': full_4, 's_seq_ptr': empty_8, 'h_seq_ptr': empty_9, 'v_seq_ptr': empty_9, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 44957696, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_17 = full_4 = empty_8 = empty_9 = None
+        getitem_8: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_4['s_seq_ptr']
+        getitem_9: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_4['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_4 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_19: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.select.int(getitem_9, 0, -1);  getitem_9 = None
+        clone_4: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.clone.default(select_19);  select_19 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_19: "f32[224, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(getitem_8, [224, 256, 56, 56]);  getitem_8 = None
+        convolution_5: "f32[224, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.convolution.default(view_19, arg11_1, arg12_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_19 = arg11_1 = arg12_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_20: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(convolution_5, [4, 56, 256, 56, 56]);  convolution_5 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_5: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.full.default([56, 256, 56, 56], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_10: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 256, 56, 56], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_11: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 256, 56, 56], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_5 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 20, grid = [(351232, 1, 1), (175616, 1, 1), (175616, 1, 1), (87808, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_20, 'v_init_ptr': full_5, 's_seq_ptr': empty_10, 'h_seq_ptr': empty_11, 'v_seq_ptr': empty_11, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 44957696, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_20 = full_5 = empty_10 = empty_11 = None
+        getitem_10: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_5['s_seq_ptr']
+        getitem_11: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_5['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_5 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_23: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.select.int(getitem_11, 0, -1);  getitem_11 = None
+        clone_5: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.clone.default(select_23);  select_23 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_22: "f32[224, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(getitem_10, [224, 256, 56, 56]);  getitem_10 = None
+        convolution_6: "f32[224, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.convolution.default(view_22, arg13_1, arg14_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_22 = arg13_1 = arg14_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_23: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(convolution_6, [4, 56, 256, 56, 56]);  convolution_6 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_6: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.full.default([56, 256, 56, 56], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_12: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 256, 56, 56], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_13: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 256, 56, 56], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_6 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 21, grid = [(351232, 1, 1), (175616, 1, 1), (175616, 1, 1), (87808, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_23, 'v_init_ptr': full_6, 's_seq_ptr': empty_12, 'h_seq_ptr': empty_13, 'v_seq_ptr': empty_13, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 44957696, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_23 = full_6 = empty_12 = empty_13 = None
+        getitem_12: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_6['s_seq_ptr']
+        getitem_13: "f32[4, 56, 256, 56, 56][44957696, 802816, 3136, 56, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_6['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_6 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_27: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.select.int(getitem_13, 0, -1);  getitem_13 = None
+        clone_6: "f32[56, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.clone.default(select_27);  select_27 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:892 in forward, code: out = super().forward(x.flatten(0, 1))
+        view_25: "f32[224, 256, 56, 56][802816, 3136, 56, 1]cuda:0" = torch.ops.aten.view.default(getitem_12, [224, 256, 56, 56]);  getitem_12 = None
+        avg_pool2d_2: "f32[224, 256, 28, 28][200704, 784, 28, 1]cuda:0" = torch.ops.aten.avg_pool2d.default(view_25, [2, 2], [2, 2]);  view_25 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:893 in forward, code: x = out.view(t, n, *out.shape[1:])
+        view_26: "f32[4, 56, 256, 28, 28][11239424, 200704, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(avg_pool2d_2, [4, 56, 256, 28, 28]);  avg_pool2d_2 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_27: "f32[224, 256, 28, 28][200704, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(view_26, [224, 256, 28, 28]);  view_26 = None
+        convolution_7: "f32[224, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.convolution.default(view_27, arg15_1, arg16_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_27 = arg15_1 = arg16_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_28: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(convolution_7, [4, 56, 512, 28, 28]);  convolution_7 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_7: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.full.default([56, 512, 28, 28], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_14: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 28, 28], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_15: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 28, 28], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_7 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 22, grid = [(175616, 1, 1), (87808, 1, 1), (87808, 1, 1), (43904, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_28, 'v_init_ptr': full_7, 's_seq_ptr': empty_14, 'h_seq_ptr': empty_15, 'v_seq_ptr': empty_15, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 22478848, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_28 = full_7 = empty_14 = empty_15 = None
+        getitem_14: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_7['s_seq_ptr']
+        getitem_15: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_7['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_7 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_31: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.select.int(getitem_15, 0, -1);  getitem_15 = None
+        clone_7: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.clone.default(select_31);  select_31 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_30: "f32[224, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(getitem_14, [224, 512, 28, 28]);  getitem_14 = None
+        convolution_8: "f32[224, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.convolution.default(view_30, arg17_1, arg18_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_30 = arg17_1 = arg18_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_31: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(convolution_8, [4, 56, 512, 28, 28]);  convolution_8 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_8: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.full.default([56, 512, 28, 28], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_16: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 28, 28], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_17: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 28, 28], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_8 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 23, grid = [(175616, 1, 1), (87808, 1, 1), (87808, 1, 1), (43904, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_31, 'v_init_ptr': full_8, 's_seq_ptr': empty_16, 'h_seq_ptr': empty_17, 'v_seq_ptr': empty_17, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 22478848, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_31 = full_8 = empty_16 = empty_17 = None
+        getitem_16: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_8['s_seq_ptr']
+        getitem_17: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_8['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_8 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_35: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.select.int(getitem_17, 0, -1);  getitem_17 = None
+        clone_8: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.clone.default(select_35);  select_35 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_33: "f32[224, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(getitem_16, [224, 512, 28, 28]);  getitem_16 = None
+        convolution_9: "f32[224, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.convolution.default(view_33, arg19_1, arg20_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_33 = arg19_1 = arg20_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_34: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(convolution_9, [4, 56, 512, 28, 28]);  convolution_9 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_9: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.full.default([56, 512, 28, 28], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_18: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 28, 28], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_19: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 28, 28], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_9 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 24, grid = [(175616, 1, 1), (87808, 1, 1), (87808, 1, 1), (43904, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_34, 'v_init_ptr': full_9, 's_seq_ptr': empty_18, 'h_seq_ptr': empty_19, 'v_seq_ptr': empty_19, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 22478848, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_34 = full_9 = empty_18 = empty_19 = None
+        getitem_18: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_9['s_seq_ptr']
+        getitem_19: "f32[4, 56, 512, 28, 28][22478848, 401408, 784, 28, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_9['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_9 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_39: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.select.int(getitem_19, 0, -1);  getitem_19 = None
+        clone_9: "f32[56, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.clone.default(select_39);  select_39 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:892 in forward, code: out = super().forward(x.flatten(0, 1))
+        view_36: "f32[224, 512, 28, 28][401408, 784, 28, 1]cuda:0" = torch.ops.aten.view.default(getitem_18, [224, 512, 28, 28]);  getitem_18 = None
+        avg_pool2d_3: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.avg_pool2d.default(view_36, [2, 2], [2, 2]);  view_36 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:893 in forward, code: x = out.view(t, n, *out.shape[1:])
+        view_37: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(avg_pool2d_3, [4, 56, 512, 14, 14]);  avg_pool2d_3 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_38: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(view_37, [224, 512, 14, 14]);  view_37 = None
+        convolution_10: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.convolution.default(view_38, arg21_1, arg22_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_38 = arg21_1 = arg22_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_39: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(convolution_10, [4, 56, 512, 14, 14]);  convolution_10 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_10: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.full.default([56, 512, 14, 14], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_20: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 14, 14], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_21: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 14, 14], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_10 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 25, grid = [(43904, 1, 1), (21952, 1, 1), (21952, 1, 1), (10976, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_39, 'v_init_ptr': full_10, 's_seq_ptr': empty_20, 'h_seq_ptr': empty_21, 'v_seq_ptr': empty_21, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 5619712, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_39 = full_10 = empty_20 = empty_21 = None
+        getitem_20: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_10['s_seq_ptr']
+        getitem_21: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_10['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_10 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_43: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.select.int(getitem_21, 0, -1);  getitem_21 = None
+        clone_10: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.clone.default(select_43);  select_43 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_41: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(getitem_20, [224, 512, 14, 14]);  getitem_20 = None
+        convolution_11: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.convolution.default(view_41, arg23_1, arg24_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_41 = arg23_1 = arg24_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_42: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(convolution_11, [4, 56, 512, 14, 14]);  convolution_11 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_11: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.full.default([56, 512, 14, 14], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_22: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 14, 14], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_23: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 14, 14], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_11 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 26, grid = [(43904, 1, 1), (21952, 1, 1), (21952, 1, 1), (10976, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_42, 'v_init_ptr': full_11, 's_seq_ptr': empty_22, 'h_seq_ptr': empty_23, 'v_seq_ptr': empty_23, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 5619712, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_42 = full_11 = empty_22 = empty_23 = None
+        getitem_22: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_11['s_seq_ptr']
+        getitem_23: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_11['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_11 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_47: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.select.int(getitem_23, 0, -1);  getitem_23 = None
+        clone_11: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.clone.default(select_47);  select_47 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:186 in forward, code: y = super().forward(x.flatten(0, 1))
+        view_44: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(getitem_22, [224, 512, 14, 14]);  getitem_22 = None
+        convolution_12: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.convolution.default(view_44, arg25_1, arg26_1, [1, 1], [1, 1], [1, 1], False, [0, 0], 1);  view_44 = arg25_1 = arg26_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:188 in forward, code: x = y.view(y_shape)
+        view_45: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(convolution_12, [4, 56, 512, 14, 14]);  convolution_12 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_12: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.full.default([56, 512, 14, 14], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_24: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 14, 14], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_25: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 512, 14, 14], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_12 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 27, grid = [(43904, 1, 1), (21952, 1, 1), (21952, 1, 1), (10976, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_45, 'v_init_ptr': full_12, 's_seq_ptr': empty_24, 'h_seq_ptr': empty_25, 'v_seq_ptr': empty_25, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 5619712, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_45 = full_12 = empty_24 = empty_25 = None
+        getitem_24: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_12['s_seq_ptr']
+        getitem_25: "f32[4, 56, 512, 14, 14][5619712, 100352, 196, 14, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_12['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_12 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_51: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.select.int(getitem_25, 0, -1);  getitem_25 = None
+        clone_12: "f32[56, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.clone.default(select_51);  select_51 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:892 in forward, code: out = super().forward(x.flatten(0, 1))
+        view_47: "f32[224, 512, 14, 14][100352, 196, 14, 1]cuda:0" = torch.ops.aten.view.default(getitem_24, [224, 512, 14, 14]);  getitem_24 = None
+        avg_pool2d_4: "f32[224, 512, 7, 7][25088, 49, 7, 1]cuda:0" = torch.ops.aten.avg_pool2d.default(view_47, [2, 2], [2, 2]);  view_47 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:893 in forward, code: x = out.view(t, n, *out.shape[1:])
+        view_48: "f32[4, 56, 512, 7, 7][1404928, 25088, 49, 7, 1]cuda:0" = torch.ops.aten.view.default(avg_pool2d_4, [4, 56, 512, 7, 7]);  avg_pool2d_4 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:1179 in forward, code: x = super().forward(x.flatten(0, 1))
+        view_49: "f32[224, 512, 7, 7][25088, 49, 7, 1]cuda:0" = torch.ops.aten.view.default(view_48, [224, 512, 7, 7]);  view_48 = None
+        view_50: "f32[224, 25088][25088, 1]cuda:0" = torch.ops.aten.view.default(view_49, [224, 25088]);  view_49 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/layer/stateless_wrapper.py:1181 in forward, code: x = x.view(y_shape)
+        view_51: "f32[4, 56, 25088][1404928, 25088, 1]cuda:0" = torch.ops.aten.view.default(view_50, [4, 56, 25088]);  view_50 = None
+
+        # No stacktrace found for following nodes
+        view_52: "f32[224, 25088][25088, 1]cuda:0" = torch.ops.aten.view.default(view_51, [224, 25088]);  view_51 = None
+        permute: "f32[25088, 4096][1, 25088]cuda:0" = torch.ops.aten.permute.default(arg27_1, [1, 0]);  arg27_1 = None
+        addmm: "f32[224, 4096][4096, 1]cuda:0" = torch.ops.aten.addmm.default(arg28_1, view_52, permute);  arg28_1 = view_52 = permute = None
+        view_53: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = torch.ops.aten.view.default(addmm, [4, 56, 4096]);  addmm = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_13: "f32[56, 4096][4096, 1]cuda:0" = torch.ops.aten.full.default([56, 4096], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_26: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 4096], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_27: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 4096], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_13 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 28, grid = [(1792, 1, 1), (896, 1, 1), (896, 1, 1), (448, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_53, 'v_init_ptr': full_13, 's_seq_ptr': empty_26, 'h_seq_ptr': empty_27, 'v_seq_ptr': empty_27, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 229376, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_53 = full_13 = empty_26 = empty_27 = None
+        getitem_26: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_13['s_seq_ptr']
+        getitem_27: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_13['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_13 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_55: "f32[56, 4096][4096, 1]cuda:0" = torch.ops.aten.select.int(getitem_27, 0, -1);  getitem_27 = None
+        clone_13: "f32[56, 4096][4096, 1]cuda:0" = torch.ops.aten.clone.default(select_55);  select_55 = None
+
+        # No stacktrace found for following nodes
+        permute_1: "f32[4096, 4096][1, 4096]cuda:0" = torch.ops.aten.permute.default(arg29_1, [1, 0]);  arg29_1 = None
+        view_55: "f32[224, 4096][4096, 1]cuda:0" = torch.ops.aten.view.default(getitem_26, [224, 4096]);  getitem_26 = None
+        addmm_1: "f32[224, 4096][4096, 1]cuda:0" = torch.ops.aten.addmm.default(arg30_1, view_55, permute_1);  arg30_1 = view_55 = permute_1 = None
+        view_56: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = torch.ops.aten.view.default(addmm_1, [4, 56, 4096]);  addmm_1 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/base_node.py:355 in v_float_to_tensor, code: self.v = torch.full_like(x, v_init, requires_grad=False)
+        full_14: "f32[56, 4096][4096, 1]cuda:0" = torch.ops.aten.full.default([56, 4096], 0.0, dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/triton_kernel/neuron_kernel/lif.py:439 in multistep_lif, code: s_seq, v_seq = multistep_lif_inference(
+        empty_28: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 4096], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        empty_29: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = torch.ops.aten.empty.memory_format([4, 56, 4096], dtype = torch.float32, layout = torch.strided, device = device(type='cuda', index=0), pin_memory = False)
+        triton_kernel_wrapper_functional_proxy_14 = torch.ops.higher_order.triton_kernel_wrapper_functional(kernel_idx = 0, constant_args_idx = 29, grid = [(1792, 1, 1), (896, 1, 1), (896, 1, 1), (448, 1, 1)], tma_descriptor_metadata = {}, kwargs = {'x_seq_ptr': view_56, 'v_init_ptr': full_14, 's_seq_ptr': empty_28, 'h_seq_ptr': empty_29, 'v_seq_ptr': empty_29, 'tau': 2.0, 'v_threshold': 1.0, 'v_reset': 0.0, 'T': 4, 'NCL': 229376, 'decay_input': True, 'soft_reset': False, 'save_intermediates': False}, tensors_to_clone = ['s_seq_ptr', 'v_seq_ptr']);  view_56 = full_14 = empty_28 = empty_29 = None
+        getitem_28: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_14['s_seq_ptr']
+        getitem_29: "f32[4, 56, 4096][229376, 4096, 1]cuda:0" = triton_kernel_wrapper_functional_proxy_14['v_seq_ptr'];  triton_kernel_wrapper_functional_proxy_14 = None
+
+        # File: /home/charlley/Code/Triton-Pass-Analysis/spikingjelly/spikingjelly/activation_based/neuron/lif.py:580 in multi_step_forward, code: self.v = v_seq[-1].clone()
+        select_59: "f32[56, 4096][4096, 1]cuda:0" = torch.ops.aten.select.int(getitem_29, 0, -1);  getitem_29 = None
+        clone_14: "f32[56, 4096][4096, 1]cuda:0" = torch.ops.aten.clone.default(select_59);  select_59 = None
+
+        # No stacktrace found for following nodes
+        permute_2: "f32[4096, 1000][1, 4096]cuda:0" = torch.ops.aten.permute.default(arg31_1, [1, 0]);  arg31_1 = None
+        view_58: "f32[224, 4096][4096, 1]cuda:0" = torch.ops.aten.view.default(getitem_28, [224, 4096]);  getitem_28 = None
+        addmm_2: "f32[224, 1000][1000, 1]cuda:0" = torch.ops.aten.addmm.default(arg32_1, view_58, permute_2);  arg32_1 = view_58 = permute_2 = None
+        view_59: "f32[4, 56, 1000][56000, 1000, 1]cuda:0" = torch.ops.aten.view.default(addmm_2, [4, 56, 1000]);  addmm_2 = None
+        return (view_59, clone, clone_1, clone_2, clone_3, clone_4, clone_5, clone_6, clone_7, clone_8, clone_9, clone_10, clone_11, clone_12, clone_13, clone_14)

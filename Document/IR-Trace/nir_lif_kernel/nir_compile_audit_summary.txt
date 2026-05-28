@@ -1,0 +1,18 @@
+# NIR + torch.compile + 全 Triton 路径审计摘要（真实运行截获）
+# 来源: examples/vgg16_snn/nir_compile_test.py
+# 完整日志: 重跑时设 TORCH_LOGS=output_code 抓 800 KB+ Inductor 编译产物
+
+[result] first forward done in 49.4s, out shape=(4, 1, 1000)
+[result] dynamo graph_break count = 0  (0 = single graph)
+[result] graph_break detail: {}
+
+=== 全 Triton 审计 10 项 ===
+A) extern_kernels.X 次数:                  0   ✅ 没有 cuDNN/cuBLAS extern 回退
+B) Triton kernel 定义数 (def triton_*):    98  ✅
+D) max_autotune 决策 12 次全部胜出 Triton: 9× triton_convolution2d + 3× triton_mm
+E) cudnn/cublas 字样次数:                  0   ✅
+F) Inductor Output code 段数:              1   ✅ 整网编进单一计算图
+G) dynamo graph_break / Recompiling:       0   ✅
+
+结论: NIR 路径返回的 fx.GraphModule 套同一份 configure_full_triton_compilation 配置后，
+      10 项审计完全等同于 path B。NIR 是协议级包装，运行时纯度由 torch.compile 决定。

@@ -1,0 +1,3 @@
+# NIR HDF5 序列化含整网权重（约 510 MB），超 GitHub 单文件上限。
+# 由固定 seed 的复现脚本（见 Document/Skill/spikingjelly-nir-implementation.md §8）确定性重新生成。
+*.h5

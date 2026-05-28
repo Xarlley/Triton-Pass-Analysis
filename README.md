@@ -64,6 +64,9 @@
   沉淀通用的诊断与调优方法。当前收录：
   - `full-triton-compilation.md` —— 如何诊断并让一个 SpikingJelly SNN 完整走 Triton 编译（图中断、`recompile_limit`、extern kernel 三类问题的成因与解法）。
   - `audit-full-triton-path.md` —— 全 Triton 路径的端到端审计程序（10 个独立可观测指标 + 一段一键 grep + 一份 PASS/FAIL bash 脚本），保证「自定义 Pass 作用于整网」这条假设的可重复验证。
+  - `spikingjelly-nir-implementation.md` —— SpikingJelly 里 NIR 编程模型 + 用户代码到 NIR 图的源码级映射 + NIR → fx.GraphModule → ATen → cuDNN/cuBLAS + LIF kernel 五级 IR (TTIR/TTGIR/LLIR/PTX/SASS) 的真机捕获讲解。
+  - `nir-call-stack-trace.md` —— NIR 路径的 nirtorch / SpikingJelly / Triton / cuDNN+cuBLAS+ATen 真实运行时调用栈（`sys.settrace` + `torch.profiler` 双向截获），九个子节含：BATCH=56 三路冷启动 10024 样本对照、path B BN 算术在 GPU 上仍跑的 TTIR 实证、NIR-compile vs SJ-direct 的 FX 图同形性逐字段对比。
+  - `nir-op-mapping.md` —— NIR v1.0.8 全部 17 个原语 ↔ PyTorch / SpikingJelly / ATen 算子的双向映射详表（含 nirtorch DEFAULT_MAP 覆盖 SJ map_dict 的反直觉行为）+ 协议级强约束清单 + SJ+nirtorch 当前能 round-trip 的 9 类原语交集。
 
 ## 📂 目录结构
 
@@ -75,13 +78,17 @@ Document/                            编译原理分析与经验文档
 ├── Passes/                          19 份官方优化 Pass / 工具模块的源码级剖析
 ├── Skill/                           通用诊断与调优经验
 │   ├── full-triton-compilation.md   让 SpikingJelly SNN 完整走 Triton 编译
-│   └── audit-full-triton-path.md    全 Triton 路径端到端审计（10 项指标 + PASS/FAIL 脚本）
+│   ├── audit-full-triton-path.md    全 Triton 路径端到端审计（10 项指标 + PASS/FAIL 脚本）
+│   ├── spikingjelly-nir-implementation.md  SJ 里 NIR 编程模型 + 到 GPU 的完整 IR 下降链（真实捕获）
+│   ├── nir-call-stack-trace.md      NIR 路径的运行时调用栈实测 + 三路冷启动对照 + FX 图同形性证据
+│   └── nir-op-mapping.md            NIR ↔ Torch ↔ ATen 算子双向映射详表 + 协议级强约束清单
 └── IR-Trace/                        真实 VGG16-SNN 代表 kernel 的逐 Pass IR 变换跟踪
     ├── README.md                    方法、等价性保证与流水线总览
     ├── Optimization-Insights.md     关键事实核查（时间步 / 寄存器 / 脉冲稀疏度）与 §2.1·§2.2 结论
     ├── All-Kernels.md               一次真实推理生成的全部 48 个 Triton kernel 完整代码
     ├── Inductor-Tile-Register-Strategy.md   tile 决策与寄存器分配策略（TorchInductor 源码级）
-    └── {convolution,bn_lif,maxpool,matmul}/   每 kernel：索引 + 逐 Pass 变换文档 + 各阶段 IR
+    ├── {convolution,bn_lif,maxpool,matmul}/   每 kernel：索引 + 逐 Pass 变换文档 + 各阶段 IR
+    └── nir_lif_kernel/              NIR 路径真实运行捕获（NIR 图、fx 源码、LIF kernel 五级 IR、调用栈、profiler、冷启动 10024 样本 jsonl、AOT FX 图对比）
 
 examples/                            测试与示例脚本
 ├── spikingjelly_triton/             SpikingJelly → torch.compile → Triton 溯源示例
@@ -91,6 +98,9 @@ examples/                            测试与示例脚本
 └── vgg16_snn/
     ├── vgg16_test.py                可复现、全 Triton 编译的 VGG16-SNN 基准
     ├── vgg16_via_nir.py             NIR roundtrip 版 VGG16-SNN（BN-folded + AvgPool）
+    ├── nir_compile_test.py          验证 NIR 返回的 fx.GraphModule 套 torch.compile 也能纯走 Triton
+    ├── trace_nir_calls.py           sys.settrace + torch.profiler 抓 NIR 路径运行时调用栈
+    ├── cold_start_10k_compare.py    三路径冷启动 10024 样本对照（MODE=B/NIR/SJ + BATCH 参数化）
     ├── benchmark_inference.py       ImageNet val 上 N 张样本的延迟测量（COMPILE=1 切全 Triton）
     ├── benchmark_compare.py         三条路径在同一输入上做 100-iter 平均对比（支持 BATCH 参数）
     ├── Implementation-Modes.md      三条实现路径的代码走读、cuDNN 调用栈、BATCH 调参指南
