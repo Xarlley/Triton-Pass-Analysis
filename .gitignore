@@ -11,3 +11,7 @@ __pycache__/
 .vscode/
 .idea/
 *.swp
+
+# 远程 GPU 服务器信息（含连接凭据，不入 repo）
+remote_gpu_servers/
+.claude/settings.local.json
