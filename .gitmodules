@@ -14,3 +14,9 @@
 [submodule "nirtorch"]
 	path = nirtorch
 	url = https://github.com/neuromorphs/NIRTorch.git
+[submodule "spyx"]
+	path = spyx
+	url = https://github.com/kmheckel/spyx.git
+[submodule "norse"]
+	path = norse
+	url = https://github.com/norse/norse.git
