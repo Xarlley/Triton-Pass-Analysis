@@ -1,0 +1,27 @@
+# 4-path kernel category breakdown (us / forward, BATCH=32, T=4)
+
+category                                                1. SJ-eager          2. SJ-compile     3. PrefixSum-eager   4. PrefixSum-compile
+-----------------------------------------------------------------------------------------------------------------------------------------
+AvgPool (ATen native CUDA)                                      0.0                    0.0                 6007.7                    0.0
+AvgPool (Inductor Triton poi)                                   0.0                    0.0                    0.0                 4896.9
+AvgPool+conv-epilogue (Inductor Triton poi)                     0.0                    0.0                    0.0                   17.4
+BN (cuDNN)                                                  18596.3                    0.0                    0.0                    0.0
+BN+conv-epilogue (Inductor Triton poi)                          0.0                20149.4                    0.0                    0.0
+LIF/IF kernel (SJ Triton)                                   30222.4               105489.4                    0.0                    0.0
+MaxPool (ATen native CUDA)                                   7122.8                    0.0                    0.0                    0.0
+MaxPool (Inductor Triton poi)                                   0.0                 4796.3                    0.0                    0.0
+MaxPool+conv-epilogue (Inductor Triton poi)                     0.0                   14.9                    0.0                    0.0
+conv (Inductor Triton tem)                                      0.0               208418.3                    0.0               153328.0
+conv (cuDNN cutlass)                                        10641.1                    0.0                10626.5                    0.0
+conv (cuDNN layout xform)                                   15496.1                    0.0                15359.0                    0.0
+conv (cuDNN winograd)                                        3897.3                    0.0                 3890.1                    0.0
+conv (cuDNN xmma/sgemm)                                      4070.0                    0.0                 4001.7                    0.0
+conv-epilogue (Inductor Triton poi)                             0.0                10252.9                    0.0                  307.4
+cumsum (Inductor Triton scan)                                   0.0                    0.0                    0.0                18084.2
+elementwise (ATen native CUDA)                              19995.0                    0.0               107181.2                    0.0
+elementwise (Inductor Triton poi/red/per)                       0.0                    2.2                    0.0                30662.8
+gemm (Inductor Triton tem)                                      0.0                 2423.9                    0.0                 2423.4
+gemm (cuBLAS)                                               13640.4                    0.0                13639.9                    0.0
+memcpy/memset                                                4427.9                    0.0                    0.9                    0.0
+other                                                           0.0                    0.0                36840.4                55161.3
+TOTAL                                                      128109.4               351547.3               197547.5               264881.3

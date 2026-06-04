@@ -1,0 +1,31 @@
+# FusedIF-eager (BATCH=32, T=4) kernel breakdown
+
+category                                      us/iter   % of total    calls
+----------------------------------------------------------------------------
+conv (cuDNN layout xform)                     15415.2       28.72%       21
+gemm (cuBLAS)                                 13689.3       25.50%        5
+conv (cuDNN cutlass)                          10669.7       19.88%        1
+AvgPool (ATen native)                          6010.7       11.20%        5
+conv (cuDNN xmma/sgemm)                        4001.3        7.45%        1
+conv (cuDNN winograd)                          3886.5        7.24%        6
+ConvBiasIF / FusedIF (hand)                       5.3        0.01%        2
+memcpy/memset                                     0.9        0.00%        2
+----------------------------------------------------------------------------
+TOTAL                                         53678.8
+
+Top 25 kernels:
+rank     self_us  calls  name
+   1     11390.6      2  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x32_8x5_nn_align1>(cutlass_80_simt_sgemm_128x32_8x5_nn_align1::Params)
+   2     11091.9     20  void cudnn::engines_precompiled::nchwToNhwcKernel<float, float, float, false, true, (cudnnKernelDataType_t)2>(cudnn::engines_precompiled::nchw2nhwc_params_t<float>, float const*, float*)
+   3     10669.7      1  void cutlass__5x_cudnn::Kernel<cutlass_tensorop_s1688fprop_optimized_tf32_128x64_16x6_nhwc_align4>(cutlass_tensorop_s1688fprop_optimized_tf32_128x64_16x6_nhwc_align4::Params)
+   4      6010.7      5  void at::native::(anonymous namespace)::avg_pool2d_out_cuda_frame<float, float>(int, float const*, long, long, long, long, int, int, int, int, int, int, int, float*, int, bool, bool)
+   5      4323.3      1  void cudnn::engines_precompiled::nhwcToNchwKernel<float, float, float, true, false, (cudnnKernelDataType_t)0>(cudnn::engines_precompiled::nhwc2nchw_params_t<float>, float const*, float*)
+   6      4001.3      1  void implicit_convolve_sgemm<float, float, 1024, 5, 5, 3, 3, 3, 1, false, false, true>(int, int, int, float const*, int, float*, float const*, kernel_conv_params, unsigned long long, int, float, float, int, float const*, float const*, bool, bool, int, int)
+   7      2026.8      1  void cutlass::Kernel2<cutlass_80_simt_sgemm_64x64_8x5_tn_align1>(cutlass_80_simt_sgemm_64x64_8x5_tn_align1::Params)
+   8      1970.4      2  void cudnn::winograd_nonfused::winogradForwardData4x4<float, float>(cudnn::winograd_nonfused::WinogradDataParams<float, float>)
+   9      1792.0      2  void cudnn::winograd_nonfused::winogradForwardOutput4x4<float, float>(cudnn::winograd_nonfused::WinogradOutputParams<float, float>)
+  10       202.9      1  void cutlass::Kernel2<cutlass_80_simt_sgemm_256x128_8x4_tn_align1>(cutlass_80_simt_sgemm_256x128_8x4_tn_align1::Params)
+  11       124.1      2  void cudnn::winograd_nonfused::winogradForwardFilter4x4<float, float>(cudnn::winograd_nonfused::WinogradFilterParams<float, float>)
+  12        69.1      1  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x64_8x5_tn_align1>(cutlass_80_simt_sgemm_128x64_8x5_tn_align1::Params)
+  13         5.3      2  _fused_if_forward_kernel
+  14         0.9      2  Memset (Device)

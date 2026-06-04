@@ -1,0 +1,27 @@
+# perf_breakdown.py 输出（BATCH=32, T=4）
+# eager_total_cuda_us = 127854.1
+# compile_total_cuda_us = 350700.0
+# diff = +222845.9 us (+174.3%)
+# 折算单张 = +6963.93 us / 张
+
+algorithm category                                eager_us  eager_n  compile_us  compile_n       Δ (us)     Δ (%)
+-----------------------------------------------------------------------------------------------------------------
+conv (Inductor Triton tem)                             0.0        0    207850.5         13    +207850.5     (new)
+LIF (SJ Triton)                                    30219.0       15    105210.7         30     +74991.7   +248.2%
+BN+conv-epilogue (Inductor Triton poi)                 0.0        0     20164.4         26     +20164.4     (new)
+elementwise (ATen native CUDA)                     19994.8       28         0.0          0     -19994.8   -100.0%
+BN (cuDNN/ATen)                                    18517.8       13         0.0          0     -18517.8   -100.0%
+conv (cuDNN layout xform)                          15502.4       21         0.0          0     -15502.4   -100.0%
+gemm (cuBLAS cutlass)                              13581.4        5         0.0          0     -13581.4   -100.0%
+conv (cuDNN cutlass)                               10581.7        1         0.0          0     -10581.7   -100.0%
+conv-epilogue only (Inductor Triton poi)               0.0        0     10248.4         19     +10248.4     (new)
+MaxPool (ATen native CUDA)                          7133.0        5         0.0          0      -7133.0   -100.0%
+MaxPool (Inductor Triton poi)                          0.0        0      4793.7          5      +4793.7     (new)
+memcpy/memset                                       4419.6       17         0.0          0      -4419.6   -100.0%
+conv (cuDNN xmma/sgemm)                             3999.3        1         0.0          0      -3999.3   -100.0%
+conv (cuDNN winograd)                               3905.2        6         0.0          0      -3905.2   -100.0%
+gemm (Inductor Triton tem)                             0.0        0      2415.4          3      +2415.4     (new)
+MaxPool+conv-epilogue (Inductor Triton poi)            0.0        0        14.7          3        +14.7     (new)
+elementwise (Inductor Triton poi)                      0.0        0         2.2          2         +2.2     (new)
+-----------------------------------------------------------------------------------------------------------------
+TOTAL                                             127854.1      112    350700.0        101    +222845.9  +174.3%
