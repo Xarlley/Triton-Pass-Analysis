@@ -60,19 +60,17 @@ class BasicBlockSNN(nn.Module):
         self.layout = layout
         self._fused = False
 
-    def fuse(self):
+    def fuse(self, *, fold_bn: bool = True):
         """就地把本 block 替换为融合形式。要求处于 eval 状态。"""
         from ..passes.fuse import _neuron_kwargs
         kw1 = _neuron_kwargs(self.neuron1); kw1["layout"] = self.layout
         kw2 = _neuron_kwargs(self.neuron2); kw2["layout"] = self.layout
         # 用 conv weight 的 device/dtype 保证 to() 正确
         dev, dt = self.conv1.weight.device, self.conv1.weight.dtype
-        self.block1 = FusedConvBNNeuron(self.conv1.eval(), self.bn1.eval(), **kw1).to(
-            device=dev, dtype=dt
-        )
-        self.block2 = FusedConvBNAddNeuron(self.conv2.eval(), self.bn2.eval(), **kw2).to(
-            device=dev, dtype=dt
-        )
+        self.block1 = FusedConvBNNeuron(self.conv1.eval(), self.bn1.eval(),
+                                        fold_bn=fold_bn, **kw1).to(device=dev, dtype=dt)
+        self.block2 = FusedConvBNAddNeuron(self.conv2.eval(), self.bn2.eval(),
+                                           fold_bn=fold_bn, **kw2).to(device=dev, dtype=dt)
         # 让 downsample 仍然是普通 conv-bn（没融 neuron）；保留原样
         self.conv1 = nn.Identity()
         self.bn1 = nn.Identity()
@@ -155,17 +153,17 @@ class ResNetSNN(nn.Module):
             blocks.append(BasicBlockSNN(self.in_ch, out_ch, **self.neuron_kwargs))
         return nn.Sequential(*blocks)
 
-    def fuse(self):
+    def fuse(self, *, fold_bn: bool = True):
         """递归融合每个 BasicBlock。Stem 仍走 Sequential pass。"""
         for m in self.modules():
             if isinstance(m, BasicBlockSNN):
-                m.fuse()
+                m.fuse(fold_bn=fold_bn)
         # Stem 是相邻的 conv-bn-neuron，可由 fuse_snn_model 处理 — 但 stem 在
         # 顶层不是 nn.Sequential，所以这里直接构造融合 module。
         kw = dict(self.neuron_kwargs)
         dev, dt = self.stem_conv.weight.device, self.stem_conv.weight.dtype
         stem_fused = FusedConvBNNeuron(
-            self.stem_conv.eval(), self.stem_bn.eval(),
+            self.stem_conv.eval(), self.stem_bn.eval(), fold_bn=fold_bn,
             neuron=kw["neuron"], tau=kw["tau"], decay_input=kw["decay_input"],
             soft_reset=kw["soft_reset"], v_threshold=kw["v_threshold"],
             v_reset=kw["v_reset"], layout=kw["layout"],
@@ -217,15 +215,15 @@ def _init_bn(model):
             m.bias.data.copy_(torch.randn_like(m.bias) * 0.1)
 
 
-def resnet18_snn(*, fused=False, init_bn=True, **kw):
+def resnet18_snn(*, fused=False, fold_bn=True, init_bn=True, **kw):
     m = ResNetSNN([2, 2, 2, 2], **kw)
     if init_bn: _init_bn(m)
-    if fused: m.eval().fuse()
+    if fused: m.eval().fuse(fold_bn=fold_bn)
     return m
 
 
-def resnet34_snn(*, fused=False, init_bn=True, **kw):
+def resnet34_snn(*, fused=False, fold_bn=True, init_bn=True, **kw):
     m = ResNetSNN([3, 4, 6, 3], **kw)
     if init_bn: _init_bn(m)
-    if fused: m.eval().fuse()
+    if fused: m.eval().fuse(fold_bn=fold_bn)
     return m

@@ -13,6 +13,9 @@ from .vgg import (
 from .resnet import (
     BasicBlockSNN, ResNetSNN, resnet18_snn, resnet34_snn,
 )
+from .sew_resnet import (
+    SEWBasicBlockSNN, SEWResNetSNN, sew_resnet18_snn, sew_resnet34_snn,
+)
 from .mobilenet import (
     InvertedResidualSNN, MobileNetV2SNN, mobilenet_v2_snn, MBV2_CFG,
 )
@@ -21,5 +24,6 @@ __all__ = [
     "VGGSNN", "vgg11_snn", "vgg13_snn", "vgg16_snn", "vgg19_snn",
     "VGG11_CFG", "VGG13_CFG", "VGG16_CFG", "VGG19_CFG",
     "BasicBlockSNN", "ResNetSNN", "resnet18_snn", "resnet34_snn",
+    "SEWBasicBlockSNN", "SEWResNetSNN", "sew_resnet18_snn", "sew_resnet34_snn",
     "InvertedResidualSNN", "MobileNetV2SNN", "mobilenet_v2_snn", "MBV2_CFG",
 ]

@@ -104,7 +104,7 @@ def _neuron_kwargs(m: nn.Module) -> dict:
 # ============================================================
 #   核心 fuser：递归扫描 nn.Sequential / nn.ModuleList
 # ============================================================
-def _fuse_seq(seq: nn.Sequential, *, layout: str) -> nn.Sequential:
+def _fuse_seq(seq: nn.Sequential, *, layout: str, fold_bn: bool = True) -> nn.Sequential:
     new_layers: List[nn.Module] = []
     i = 0
     layers = list(seq.children())
@@ -120,7 +120,7 @@ def _fuse_seq(seq: nn.Sequential, *, layout: str) -> nn.Sequential:
                 and _is_neuron(layers[i + 2])):
             kw = _neuron_kwargs(layers[i + 2])
             kw["layout"] = layout
-            mod = FusedConvBNNeuron(a.eval(), layers[i + 1].eval(), **kw)
+            mod = FusedConvBNNeuron(a.eval(), layers[i + 1].eval(), fold_bn=fold_bn, **kw)
             mod = mod.to(device=a.weight.device, dtype=a.weight.dtype)
             new_layers.append(mod)
             i += 3
@@ -169,7 +169,7 @@ def _fuse_seq(seq: nn.Sequential, *, layout: str) -> nn.Sequential:
 
         # 递归进入子 Sequential
         if isinstance(a, nn.Sequential):
-            sub_seq, sub_n = _fuse_seq(a, layout=layout)
+            sub_seq, sub_n = _fuse_seq(a, layout=layout, fold_bn=fold_bn)
             new_layers.append(sub_seq)
             fused_count += sub_n
         else:
@@ -179,12 +179,16 @@ def _fuse_seq(seq: nn.Sequential, *, layout: str) -> nn.Sequential:
     return nn.Sequential(*new_layers), fused_count
 
 
-def fuse_snn_model(model: nn.Module, *, layout: str = "NCHW") -> Tuple[nn.Module, int]:
+def fuse_snn_model(model: nn.Module, *, layout: str = "NCHW",
+                   fold_bn: bool = True) -> Tuple[nn.Module, int]:
     """递归扫描模型，把所有 Conv/Linear→(BN)→Neuron 模式替换为融合 module。
 
     Args:
         model: 处于 eval() 状态的模型。
         layout: 'NCHW' or 'NHWC'。
+        fold_bn: True（默认）折叠 BN 进 conv（最快，但非逐位一致）；
+            False 保留 BN 为独立算子、只融合 neuron（逐位一致，见
+            ``FusedConvBNNeuron``）。
 
     Returns:
         (fused_model, n_fused): 替换后的新模型，及替换计数。
@@ -192,15 +196,16 @@ def fuse_snn_model(model: nn.Module, *, layout: str = "NCHW") -> Tuple[nn.Module
     限制：
     - 仅在 nn.Sequential 内识别相邻的线性模式。残差等非顺序连接走
       ``fuse_modules_path`` 或直接构造 FusedConvBNAddNeuron / FusedAddNeuron。
+    - **请在信任结果前用 ``snn_compiler.verify.assert_equivalent`` 校验**。
     """
     if not isinstance(model, nn.Sequential):
         total = 0
         for name, child in list(model.named_children()):
-            new_child, n = fuse_snn_model(child, layout=layout)
+            new_child, n = fuse_snn_model(child, layout=layout, fold_bn=fold_bn)
             setattr(model, name, new_child)
             total += n
         return model, total
-    new_seq, n = _fuse_seq(model, layout=layout)
+    new_seq, n = _fuse_seq(model, layout=layout, fold_bn=fold_bn)
     return new_seq, n
 
 
@@ -228,7 +233,8 @@ def _set_submodule(model: nn.Module, path: str, mod: nn.Module) -> None:
         setattr(cur, last, mod)
 
 
-def fuse_modules_path(model: nn.Module, fusion_groups, *, layout: str = "NCHW") -> int:
+def fuse_modules_path(model: nn.Module, fusion_groups, *, layout: str = "NCHW",
+                      fold_bn: bool = True) -> int:
     """按显式路径融合。
 
     Args:
@@ -298,7 +304,7 @@ def fuse_modules_path(model: nn.Module, fusion_groups, *, layout: str = "NCHW") 
             bn = _get_submodule(model, bn_p)
             if not isinstance(conv, nn.Conv2d) or not isinstance(bn, nn.BatchNorm2d):
                 raise TypeError(f"{conv_p}/{bn_p}: expected Conv2d/BatchNorm2d")
-            mod = FusedConvBNNeuron(conv.eval(), bn.eval(), **kw).to(
+            mod = FusedConvBNNeuron(conv.eval(), bn.eval(), fold_bn=fold_bn, **kw).to(
                 device=conv.weight.device, dtype=conv.weight.dtype
             )
 
@@ -315,7 +321,8 @@ def fuse_modules_path(model: nn.Module, fusion_groups, *, layout: str = "NCHW") 
 def fuse_conv_bn_add_neuron_path(model: nn.Module,
                                   conv_p: str, bn_p: str, neuron_p: str,
                                   *, target_p: str | None = None,
-                                  layout: str = "NCHW") -> nn.Module:
+                                  layout: str = "NCHW",
+                                  fold_bn: bool = True) -> nn.Module:
     """把 (conv, bn, neuron) 替换为 FusedConvBNAddNeuron，返回融合后 module。
 
     与 fuse_modules_path 不同：这里**不会改 model 自己的 forward**，只是把
@@ -332,7 +339,7 @@ def fuse_conv_bn_add_neuron_path(model: nn.Module,
     neuron = _get_submodule(model, neuron_p)
     kw = _neuron_kwargs(neuron)
     kw["layout"] = layout
-    mod = FusedConvBNAddNeuron(conv.eval(), bn.eval(), **kw).to(
+    mod = FusedConvBNAddNeuron(conv.eval(), bn.eval(), fold_bn=fold_bn, **kw).to(
         device=conv.weight.device, dtype=conv.weight.dtype
     )
     _set_submodule(model, target_p, mod)

@@ -42,6 +42,16 @@ with torch.no_grad():
 
 需要拿自家模型替换的话，去 [§3](#3-如何把任意-snn-接上本框架)。
 
+> **⚠️ 接完先校验（一行）。** 融合可能在你不知情时改变结果（拓扑接错、或 BN 折叠
+> 翻转脉冲，见 [§3.2-SEW](#32-sew-sew-resnet残差加在神经元之后一等支持) 与
+> [§6](#6-调试与常见问题)）。信任加速模型前先跑：
+> ```python
+> from snn_compiler import assert_equivalent
+> assert_equivalent(reference_model, fast_model, x)   # 默认要求逐位一致；不等价会显式报错
+> ```
+> 要"加速但绝不改变结果" → 全程 `fold_bn=False`（逐位一致）；要最高吞吐且已校验
+> 精度可接受 → `fold_bn=True`（默认）。
+
 ---
 
 ## 2. 支持的架构与已实测加速
@@ -173,6 +183,34 @@ n = fuse_modules_path(block, [
 
 这一招对**任何已有的 ResNet/Bottleneck/DenseBlock/InvertedResidual 类都生效**，前提是原 forward 写法是 `out = neuron(bn(conv(x)))`（顺序串行调用）—— 融合后 `bn(conv(x))` 变 Identity 链，等价直通。
 
+### 3.2-SEW SEW-ResNet（残差加在神经元之后）——一等支持
+
+**⚠️ 最容易静默出错的拓扑。** SEW-ResNet 与标准 ResNet 的残差接法不同：
+
+| | 标准 ResNet-SNN | **SEW-ResNet** |
+|---|---|---|
+| 残差相加 | 神经元**之前** `neuron2(conv2_bn2(x) + identity)` | 神经元**之后** `neuron2(conv2_bn2(x)) ⊕ identity` |
+| downsample 分支 | 仅 conv+bn | conv+bn **+ 自带神经元** |
+| ⊕ | 仅加法 | ADD `+` / AND `*` / IAND `identity*(1-out)` |
+
+用上面 §3.2 的 `FusedConvBNAddNeuron`（=加在神经元之前）去接 SEW 块，会**静默
+算成另一个网络**（不报错、数值全错）。SEW 用 `FusedConvBNNeuron`（每段 conv-bn-
+neuron 一个，**包括 downsample 分支**）+ 一个**普通逐元素 ⊕**实现：
+
+```python
+# A. zoo 现成实现（connect_f ∈ {ADD, AND, IAND}）
+from snn_compiler.zoo import sew_resnet34_snn
+m = sew_resnet34_snn(num_classes=1000, neuron="if", connect_f="ADD",
+                     fused=True, fold_bn=False).cuda().eval()
+
+# B. 自己的 SEW 块：每段 conv-bn-neuron 一个 FusedConvBNNeuron + 普通 ⊕
+from snn_compiler.nn import FusedConvBNNeuron
+def forward(x):
+    out = b2(b1(x))                      # b1/b2 = FusedConvBNNeuron(...)
+    identity = x if ds is None else ds(x)  # ds = FusedConvBNNeuron(downsample 自带神经元)
+    return out + identity                 # ⊕ 在神经元之后（不要用 FusedConvBNAddNeuron）
+```
+
 ### 3.3 多分支 / 门控 / 自定义合流
 
 如果你的 block 有多条分支 `c = neuron(a + b + ...)`：
@@ -219,9 +257,26 @@ fused, n = fuse_snn_model(model)
 
 | API | 用途 |
 |---|---|
-| `fuse_snn_model(model, *, layout)` | Sequential 全自动模式匹配，最常用 |
-| `fuse_modules_path(model, groups, *, layout)` | 路径式 fuse；不改 forward，不改类 |
-| `fuse_conv_bn_add_neuron_path(model, conv_p, bn_p, neuron_p, *, layout)` | 显式把 (Conv, BN, Neuron) 替换为 FusedConvBNAddNeuron，用于 ResNet 残差 |
+| `fuse_snn_model(model, *, layout, fold_bn=True)` | Sequential 全自动模式匹配，最常用 |
+| `fuse_modules_path(model, groups, *, layout, fold_bn=True)` | 路径式 fuse；不改 forward，不改类 |
+| `fuse_conv_bn_add_neuron_path(model, conv_p, bn_p, neuron_p, *, layout, fold_bn=True)` | 显式把 (Conv, BN, Neuron) 替换为 FusedConvBNAddNeuron，用于标准 ResNet 残差 |
+
+所有 fuse 入口都接 `fold_bn`：`True`（默认，最快，非逐位一致）/`False`（逐位一致，
+BN 作独立算子只融神经元）。详见 [§6](#6-调试与常见问题)。
+
+### 4.1.5 校验入口：`snn_compiler.verify`（强烈建议先跑）
+
+| API | 用途 |
+|---|---|
+| `assert_equivalent(ref, fast, x, *, atol=0, require_bitexact=True, min_argmax_agree=1.0)` | 不等价就抛 `AssertionError` 并指出原因（拓扑接错 / BN 折叠）。默认要求逐位一致 |
+| `compare_models(ref, fast, x)` | 返回度量字典（max\|Δ\|、top-1 一致率、bit_exact…），不抛异常，适合写进 CI |
+
+### 4.1.6 SEW-ResNet 工厂：`snn_compiler.zoo`
+
+| API | 用途 |
+|---|---|
+| `sew_resnet18_snn` / `sew_resnet34_snn(*, connect_f, neuron, fused, fold_bn, ...)` | SEW-ResNet（残差加在神经元之后、downsample 自带神经元）。`connect_f ∈ {ADD,AND,IAND}` |
+| `SEWBasicBlockSNN` / `SEWResNetSNN` | 自己拼 SEW 网络时的积木 |
 
 ### 4.2 融合 module：`snn_compiler.nn`
 
@@ -232,12 +287,12 @@ fused, n = fuse_snn_model(model)
 | `CubaLIFNode` | `(x_seq) → spike_seq` | 二阶 LIF |
 | `EIFNode` | `(x_seq) → spike_seq` | 指数 IF |
 | `FusedConvNeuron` | `(x_seq) → spike_seq` | Conv → Neuron |
-| `FusedConvBNNeuron` | `(x_seq) → spike_seq` | Conv → BN → Neuron |
-| `FusedConvBNAddNeuron` | `(x_seq, residual_seq) → spike_seq` | Conv → BN → +Residual → Neuron （ResNet 残差） |
+| `FusedConvBNNeuron` | `(x_seq) → spike_seq` | Conv → BN → Neuron（接 `fold_bn`） |
+| `FusedConvBNAddNeuron` | `(x_seq, residual_seq) → spike_seq` | Conv → BN → **+Residual → Neuron**（标准 ResNet：加在神经元**之前**；SEW 不要用它，接 `fold_bn`） |
 | `FusedAddNeuron` | `(a_seq, b_seq) → spike_seq` | +合流 → Neuron（无 conv） |
 | `FusedLinearNeuron` | `(x_seq) → spike_seq` | Linear → Neuron |
 
-所有 module 都支持：`decay`/`tau`、`decay_input`、`soft_reset`、`v_threshold`（scalar / per-C / per-N tensor）、`v_reset`、`layout`（NCHW/NHWC）。
+所有 module 都支持：`decay`/`tau`、`decay_input`、`soft_reset`、`v_threshold`（scalar / per-C / per-N tensor）、`v_reset`、`layout`（NCHW/NHWC）。含 BN 的两个还支持 `fold_bn`（`True` 最快/非逐位一致，`False` 逐位一致）。
 
 ### 4.3 底层 kernel 入口：`snn_compiler.kernels`
 
@@ -324,8 +379,22 @@ for t in tl.static_range(0, T, 1):
 
 ## 6. 调试与常见问题
 
+**Q0.（最重要）我怎么确认"加速后结果没被改"？**
+
+跑 `from snn_compiler import assert_equivalent; assert_equivalent(ref, fast, x)`。
+不等价会**显式报错**并指出最可能原因。两类会静默改变结果的原因：
+
+1. **拓扑接错**（差异大、报错提示"拓扑接错"）：最典型是把 SEW-ResNet（残差加在
+   神经元**之后**、downsample 自带神经元）用成标准 ResNet 的 `FusedConvBNAddNeuron`
+   （加在神经元**之前**）。SEW 请用 `sew_resnet*_snn` 或 `FusedConvBNNeuron`+普通 `+`
+   （见 [§3.2-SEW](#32-sew-sew-resnet残差加在神经元之后一等支持)）。
+2. **BN 折叠**（差异 ~1e-3、top-1 几乎不变、报错提示"BN 折叠"）：`fold_bn=True`
+   折叠 BN 会翻转个别边界脉冲。要逐位一致就全程 `fold_bn=False`；可接受就
+   `assert_equivalent(..., require_bitexact=False, atol=...)`。
+
 **Q1. `bit-equal` 验证失败 / fused 与 naive 输出差异 > 0**
 
+- **首选 `fold_bn=False`**：默认 `fold_bn=True` 折叠 BN，数学等价但非逐位一致（见 Q0）。
 - 检查 BN 是不是 `.eval()` 状态（`fuse_conv_bn` 用 running stats，train 模式不对）。
 - 如果用 bf16，`naive` 路径会有 ULP 漂移；测试请用 fp32，或用 `same_spikes = (out > 0).eq(ref > 0).all()` 判定。
 - `v_reset` 类型必须是 Python float，不能是 tensor（kernel 把它当 constexpr）。

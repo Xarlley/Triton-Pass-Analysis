@@ -24,8 +24,9 @@ from .kernels.fused import (
 )
 from .nn.modules import (
     IFNode, LIFNode, CubaLIFNode, EIFNode,
-    FusedConvNeuron, FusedLinearNeuron, FusedConvBNNeuron,
+    FusedConvNeuron, FusedLinearNeuron, FusedConvBNNeuron, FusedConvBNAddNeuron,
 )
+from .verify import assert_equivalent, compare_models
 
 __all__ = [
     "if_lif", "cuba_lif", "eif",
@@ -33,5 +34,6 @@ __all__ = [
     "fused_bias_if_lif", "conv_neuron", "linear_neuron", "conv_bn_neuron",
     "fold_conv_bn",
     "IFNode", "LIFNode", "CubaLIFNode", "EIFNode",
-    "FusedConvNeuron", "FusedLinearNeuron", "FusedConvBNNeuron",
+    "FusedConvNeuron", "FusedLinearNeuron", "FusedConvBNNeuron", "FusedConvBNAddNeuron",
+    "assert_equivalent", "compare_models",
 ]

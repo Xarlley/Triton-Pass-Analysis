@@ -258,24 +258,53 @@ class FusedLinearNeuron(nn.Module):
 class FusedConvBNNeuron(nn.Module):
     """Conv2d + BN + IF/LIF 融合。
 
-    构造时接受一个已存在的 nn.Conv2d 与 nn.BatchNorm2d（eval 状态），
-    在 __init__ 内一次性折叠 BN 进 conv weight/bias，运行时只剩 conv + neuron。
+    构造时接受一个已存在的 nn.Conv2d 与 nn.BatchNorm2d（eval 状态）。
+
+    两种数值模式（``fold_bn``）：
+
+    - ``fold_bn=True``（默认，最快）：__init__ 内一次性把 BN 折叠进 conv
+      weight/bias，运行时只剩 conv + neuron 两步。数学等价，但折叠会让卷积
+      pre-activation 相对"conv 后再单独 BN"产生 ~1e-3 量级扰动；在脉冲网络的
+      硬阈值下这会翻转个别处于阈值边界的脉冲并逐层级联，因此 **fold_bn=True 不
+      保证与原网络逐位一致**（对率/精度通常无影响，但逐样本预测可能改变）。
+    - ``fold_bn=False``（逐位精确）：conv 与 BN 仍作为两个独立的 eager 算子按
+      原顺序计算，只把 neuron 融进 Triton kernel。pre-activation 与原网络逐位
+      相同（同 dtype 下），**与原网络逐位一致**。代价是多一次 BN kernel 启动。
+
+    需要"加速但绝不改变推理结果"时用 ``fold_bn=False``；想要最高吞吐且已用
+    ``snn_compiler.verify`` 确认精度可接受时用 ``fold_bn=True``。
     """
     def __init__(self, conv: nn.Conv2d, bn: nn.BatchNorm2d, *,
+                 fold_bn: bool = True,
                  neuron: str = "if", tau: float = 2.0, decay: float | None = None,
                  decay_input: bool = True, soft_reset: bool = False,
                  v_threshold=1.0, v_reset: float = 0.0, layout: str = "NCHW"):
         super().__init__()
         assert bn.running_mean is not None
-        new_w, new_b = fold_conv_bn(
-            conv.weight.detach(),
-            conv.bias.detach() if conv.bias is not None else None,
-            bn.weight.detach(), bn.bias.detach(),
-            bn.running_mean.detach(), bn.running_var.detach(),
-            bn.eps,
-        )
-        self.weight = nn.Parameter(new_w)
-        self.bias = nn.Parameter(new_b)
+        self.fold_bn = fold_bn
+        if fold_bn:
+            new_w, new_b = fold_conv_bn(
+                conv.weight.detach(),
+                conv.bias.detach() if conv.bias is not None else None,
+                bn.weight.detach(), bn.bias.detach(),
+                bn.running_mean.detach(), bn.running_var.detach(),
+                bn.eps,
+            )
+            self.weight = nn.Parameter(new_w)
+            self.bias = nn.Parameter(new_b)
+        else:
+            # bit-exact: 保留原 conv weight/bias，BN 作为独立 eager 算子运行时计算
+            self.weight = nn.Parameter(conv.weight.detach().clone())
+            self.register_parameter(
+                "conv_bias",
+                nn.Parameter(conv.bias.detach().clone()) if conv.bias is not None else None,
+            )
+            self.register_buffer("bn_weight", bn.weight.detach().clone())
+            self.register_buffer("bn_bias", bn.bias.detach().clone())
+            self.register_buffer("bn_mean", bn.running_mean.detach().clone())
+            self.register_buffer("bn_var", bn.running_var.detach().clone())
+            self.bn_eps = bn.eps
+            self.bias = None                     # neuron 不再单独加 bias（BN 已含 affine）
         self.stride = conv.stride
         self.padding = conv.padding
         self.dilation = conv.dilation
@@ -292,23 +321,36 @@ class FusedConvBNNeuron(nn.Module):
         else:
             self.v_threshold = float(v_threshold)
 
-    def forward(self, x_seq):
-        T, B = x_seq.shape[0], x_seq.shape[1]
-        x_4d = x_seq.reshape(T * B, *x_seq.shape[2:])
+    def _conv_bn(self, x_4d):
+        """返回 (pre_activation_4d, neuron_bias)。fold_bn 分支在此统一。"""
         if self.layout == "NHWC":
             x_4d = x_4d.contiguous(memory_format=torch.channels_last)
             w = self.weight.to(memory_format=torch.channels_last)
         else:
             x_4d = x_4d.contiguous()
             w = self.weight
-        y = F.conv2d(x_4d, w, bias=None, stride=self.stride, padding=self.padding,
-                      dilation=self.dilation, groups=self.groups)
+        if self.fold_bn:
+            y = F.conv2d(x_4d, w, bias=None, stride=self.stride, padding=self.padding,
+                          dilation=self.dilation, groups=self.groups)
+            bias = self.bias.float() if self.bias.dtype != torch.float32 else self.bias
+            bias = bias.contiguous()
+        else:
+            y = F.conv2d(x_4d, w, bias=self.conv_bias, stride=self.stride,
+                          padding=self.padding, dilation=self.dilation, groups=self.groups)
+            y = F.batch_norm(y, self.bn_mean, self.bn_var, self.bn_weight, self.bn_bias,
+                              training=False, eps=self.bn_eps)
+            bias = None
         if self.layout == "NHWC":
             y = y.contiguous(memory_format=torch.channels_last)
+        return y, bias
+
+    def forward(self, x_seq):
+        T, B = x_seq.shape[0], x_seq.shape[1]
+        x_4d = x_seq.reshape(T * B, *x_seq.shape[2:])
+        y, bias = self._conv_bn(x_4d)
         y_seq = y.view(T, B, *y.shape[1:])
-        bias = self.bias.float() if self.bias.dtype != torch.float32 else self.bias
         return fused_bias_if_lif(
-            y_seq, bias.contiguous(),
+            y_seq, bias,
             neuron=self.neuron, tau=self.tau, decay=self.decay,
             decay_input=self.decay_input, soft_reset=self.soft_reset,
             v_threshold=self.v_threshold, v_reset=self.v_reset, layout=self.layout,
@@ -325,20 +367,35 @@ class FusedConvBNAddNeuron(nn.Module):
     Triton kernel 在 t 循环里一并消耗。
     """
     def __init__(self, conv: nn.Conv2d, bn: nn.BatchNorm2d, *,
+                 fold_bn: bool = True,
                  neuron: str = "if", tau: float = 2.0, decay: float | None = None,
                  decay_input: bool = True, soft_reset: bool = False,
                  v_threshold=1.0, v_reset: float = 0.0, layout: str = "NCHW"):
         super().__init__()
         assert bn.running_mean is not None
-        new_w, new_b = fold_conv_bn(
-            conv.weight.detach(),
-            conv.bias.detach() if conv.bias is not None else None,
-            bn.weight.detach(), bn.bias.detach(),
-            bn.running_mean.detach(), bn.running_var.detach(),
-            bn.eps,
-        )
-        self.weight = nn.Parameter(new_w)
-        self.bias = nn.Parameter(new_b)
+        self.fold_bn = fold_bn
+        if fold_bn:
+            new_w, new_b = fold_conv_bn(
+                conv.weight.detach(),
+                conv.bias.detach() if conv.bias is not None else None,
+                bn.weight.detach(), bn.bias.detach(),
+                bn.running_mean.detach(), bn.running_var.detach(),
+                bn.eps,
+            )
+            self.weight = nn.Parameter(new_w)
+            self.bias = nn.Parameter(new_b)
+        else:
+            self.weight = nn.Parameter(conv.weight.detach().clone())
+            self.register_parameter(
+                "conv_bias",
+                nn.Parameter(conv.bias.detach().clone()) if conv.bias is not None else None,
+            )
+            self.register_buffer("bn_weight", bn.weight.detach().clone())
+            self.register_buffer("bn_bias", bn.bias.detach().clone())
+            self.register_buffer("bn_mean", bn.running_mean.detach().clone())
+            self.register_buffer("bn_var", bn.running_var.detach().clone())
+            self.bn_eps = bn.eps
+            self.bias = None
         self.stride = conv.stride
         self.padding = conv.padding
         self.dilation = conv.dilation
@@ -364,14 +421,22 @@ class FusedConvBNAddNeuron(nn.Module):
         else:
             x_4d = x_4d.contiguous()
             w = self.weight
-        y = F.conv2d(x_4d, w, bias=None, stride=self.stride, padding=self.padding,
-                      dilation=self.dilation, groups=self.groups)
+        if self.fold_bn:
+            y = F.conv2d(x_4d, w, bias=None, stride=self.stride, padding=self.padding,
+                          dilation=self.dilation, groups=self.groups)
+            bias = self.bias.float() if self.bias.dtype != torch.float32 else self.bias
+            bias = bias.contiguous()
+        else:
+            y = F.conv2d(x_4d, w, bias=self.conv_bias, stride=self.stride,
+                          padding=self.padding, dilation=self.dilation, groups=self.groups)
+            y = F.batch_norm(y, self.bn_mean, self.bn_var, self.bn_weight, self.bn_bias,
+                              training=False, eps=self.bn_eps)
+            bias = None
         if self.layout == "NHWC":
             y = y.contiguous(memory_format=torch.channels_last)
         y_seq = y.view(T, B, *y.shape[1:])
-        bias = self.bias.float() if self.bias.dtype != torch.float32 else self.bias
         return fused_bias_if_lif(
-            y_seq, bias.contiguous(), residual=residual_seq,
+            y_seq, bias, residual=residual_seq,
             neuron=self.neuron, tau=self.tau, decay=self.decay,
             decay_input=self.decay_input, soft_reset=self.soft_reset,
             v_threshold=self.v_threshold, v_reset=self.v_reset, layout=self.layout,

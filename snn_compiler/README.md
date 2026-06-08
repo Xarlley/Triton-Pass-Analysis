@@ -306,6 +306,60 @@ across `tests/test_correctness.py`, `test_graph_pass.py`,
 
 ---
 
+## 3.5 正确性：两个静默陷阱与如何避免（务必先校验）
+
+把本框架接到一个**陌生的** SNN 上时，有两类改写会在用户**不知情、且不报错**
+的情况下改变推理结果。请在信任加速模型之前先跑一次校验。
+
+### 陷阱 1 — 拓扑接错（静默算成另一个网络）
+
+残差/分支怎么接，本框架交给用户。最典型的坑是 **SEW-ResNet vs 标准 ResNet**：
+
+| | 标准 ResNet-SNN | **SEW-ResNet** |
+|---|---|---|
+| 残差相加 | 神经元**之前** `neuron(conv_bn(x)+identity)` | 神经元**之后** `neuron(conv_bn(x)) ⊕ identity` |
+| downsample | 仅 conv+bn | conv+bn **+ 自带神经元** |
+
+用 `FusedConvBNAddNeuron`（=加在神经元之前）去接一个 SEW 块，会**静默**算成
+另一个网络。SEW 现已是**一等支持**：
+
+```python
+from snn_compiler.zoo import sew_resnet34_snn      # connect_f ∈ {ADD, AND, IAND}
+m = sew_resnet34_snn(num_classes=1000, neuron="if", connect_f="ADD",
+                     fused=True, fold_bn=False).cuda().eval()
+```
+
+自定义 SEW 块用 `FusedConvBNNeuron`（每个 conv-bn-neuron 一个）+ 普通逐元素
+`+`/`*`，**不要**用 `FusedConvBNAddNeuron`。
+
+### 陷阱 2 — BN 折叠不是逐位一致
+
+`FusedConvBNNeuron`/`FusedConvBNAddNeuron` 默认 `fold_bn=True` 把 BN 折进
+conv（最快），数学等价但有 ~1e-3 数值扰动；在脉冲硬阈值下会翻转个别边界脉冲
+并级联，因此**与原网络不是逐位一致**（总体精度通常不受影响，但逐样本预测可能变）。
+需要"加速但绝不改变结果"时，全程用 **`fold_bn=False`**：conv 与 BN 仍分开算、
+只融合神经元，**逐位一致**，代价是多一次 BN kernel 启动（实测在 SEW-ResNet-34
+上仍有 ~1.75× 端到端加速，纯由神经元融合带来）。
+
+### 安全网：`snn_compiler.verify`（一行校验，强烈建议）
+
+```python
+from snn_compiler import assert_equivalent
+x = torch.randn(T, B, 3, H, W, device="cuda")   # 你网络真实的输入
+assert_equivalent(reference_model, fast_model, x)                 # 默认要求逐位一致
+assert_equivalent(reference_model, fast_model, x,                 # 允许 BN 折叠的小误差，
+                  atol=5e-3, require_bitexact=False)              # 但仍要求 top-1 不变
+```
+
+它把原网络与加速网络喂同一输入、逐元素比对，一旦超容差就**显式报错**并指出最可能
+的原因（拓扑接错 / BN 折叠）与修复建议——避免"以为加速了、其实算错了"。
+`compare_models(...)` 返回度量字典而不抛异常，适合写进自己的 CI。
+
+> 这些能力的测试见 `tests/test_safe_and_sew.py`（fold_bn=False 逐位一致、SEW
+> naive↔fused 逐位一致、verify 能拦下拓扑接错）。
+
+---
+
 ## 4. Benchmarks
 
 ### 4.1 VGG-16 SNN end-to-end (T=4, BATCH=32, RTX 5070 Ti)
