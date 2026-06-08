@@ -15,3 +15,18 @@ __pycache__/
 # 远程 GPU 服务器信息（含连接凭据，不入 repo）
 remote_gpu_servers/
 .claude/settings.local.json
+
+# codegraph 本地代码索引数据库（机器相关，不入 repo）
+.codegraph/
+
+# codegraph 代码索引范围：排除参考用 Git 子模块（仅影响 codegraph 等读取 .gitignore
+# 的代码索引工具；子模块仍由 .gitmodules 正常跟踪，git submodule update 不受影响）
+/triton/
+/spikingjelly/
+/pytorch/
+/nir/
+/nirtorch/
+/snntorch/
+/spyx/
+/norse/
+/examples/neurobench/
