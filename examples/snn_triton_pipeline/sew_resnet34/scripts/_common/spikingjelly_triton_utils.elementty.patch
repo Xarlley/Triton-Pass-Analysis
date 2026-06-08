@@ -1,0 +1,11 @@
+--- /home/liushifeng/charlley/spikingjelly/spikingjelly/activation_based/triton_kernel/triton_utils.py.bak	2026-06-05 02:11:03.059223765 +0000
++++ /home/liushifeng/charlley/spikingjelly/spikingjelly/activation_based/triton_kernel/triton_utils.py	2026-06-05 02:11:03.061223765 +0000
+@@ -60,7 +60,7 @@
+     # For block pointers created by tl.make_block_pointer(),
+     # implicit type casting is not supported when calling tl.store().
+     # This function manually converts dtype and then stores the data.
+-    value = value.to(pointer.dtype.element_ty.element_ty)
++    value = value.to(pointer.dtype.element_ty)
+     tl.store(pointer, value, boundary_check=boundary_check)
+ 
+ 
