@@ -416,6 +416,8 @@ All T = 4 / 16 / 64 / 128 paths bit-equal to naïve; full table in
 | Document | What it covers |
 |---|---|
 | [Document/Paper/snn_compiler_paper.md](../Document/Paper/snn_compiler_paper.md) | Method paper: motivation, design, benchmark methodology |
+| [Document/Skill/snn-compiler-pattern-to-action.md](../Document/Skill/snn-compiler-pattern-to-action.md) | **工作原理：识别什么模式→执行什么动作**（图重写 + kernel constexpr 特化，带真实 before/after 输出） |
+| [Document/Skill/snn-compiler-spiking-attention.md](../Document/Skill/snn-compiler-spiking-attention.md) | **脉冲 Transformer 推理优化：原理与实测**（脉冲注意力的探测+融合，含正确性/测速/B-T sweep/popcount 全部实测数据） |
 | [Document/Skill/snn-compiler-usage-guide.md](../Document/Skill/snn-compiler-usage-guide.md) | How to attach the framework to any SNN (Sequential / ResNet / multi-branch / SJ migration) |
 | [Document/Skill/snn-i64-offset-fix.md](../Document/Skill/snn-i64-offset-fix.md) | The T=128 correctness fix (Stage 13) |
 | [Document/Skill/snn-rate-coded-output.md](../Document/Skill/snn-rate-coded-output.md) | Rate-coded mode — kernel-level 2.2× speedup explained |
@@ -460,6 +462,53 @@ snn_compiler/
         ├── chunked_lif_proto.py
         └── pool_epilogue_proto.py
 ```
+
+---
+
+## 6.5 脉冲注意力的探测与融合（Spiking-Transformer 支持）
+
+除卷积型 SNN，框架现在也能**探测并融合脉冲注意力块**（脉冲 Transformer）。两类主流实现
+（Spikingformer `SpikingSelfAttention`、SDT-V2 `MS_Attention`）的注意力核心**几乎逐字相同**：
+无 softmax 的脉冲 Q/K/V + 线性序矩阵乘 `(q@(kᵀ@v))*scale` + `attn_lif`。识别到的「模式 → 动作」：
+
+| 模式（识别到） | 动作（执行） |
+|---|---|
+| `投影(Conv1d/RepConv)→BN→LIF`（生成脉冲 Q/K/V） | LIF → snn_compiler Triton LIF；BN 可折（`fold_bn`） |
+| `kᵀ@v`（脉冲×脉冲） | `torch.bmm`（cutlass，实测优于朴素 Triton 二值 GEMM） |
+| `(q@kv)*scale → attn_lif` | 融合 `spike_av_lif` kernel：膜电位寄存器跨 T、**不落注意力图**、scale 折进输入尺度 |
+
+```python
+from snn_compiler.passes import fuse_spiking_attention
+from snn_compiler import assert_equivalent
+
+n = fuse_spiking_attention(model, fold_bn=False)   # 探测并整块替换；fold_bn=False → 逐位一致
+assert_equivalent(reference_model, model, x)        # 信任前先校验
+```
+
+**实测**（A100, T=4, 真实预训练权重；GPU-guarded + 冷启动中位数）：
+
+| 模型 | 探测 | 正确性（fold_bn=False） | 单块加速 |
+|---|---|---|---|
+| Spikingformer-8-768 SSA | 8/8 块 | 全模型**逐位一致**(top-1 100%) | **1.90× vs eager，1.29× vs torch.compile** |
+| SDT-V2 (Meta-SpikeFormer-55M) MS | 8/8 块 | 全模型**逐位一致** | **1.53× vs eager** |
+
+为什么是这套「模式→动作」：因为**无 softmax**，矩阵乘可结合律重排为线性序、操作数保持脉冲/小整数
+（`q@kv` 全程精确整数 → `spike_av_lif` 与 `bmm`+LIF 逐位一致）。
+
+> **完整原理与实测数据**（正确性 / 单块测速 / B-sweep / T-sweep / popcount KᵀV / 方法学 / 复现）见
+> **[Document/Skill/snn-compiler-spiking-attention.md](../Document/Skill/snn-compiler-spiking-attention.md)**；
+> 逐步探索过程见 [探索日志](../Document/Exploration/spiking-attention-optimization-journal.md)。
+
+> **二值 popcount KᵀV（opt-in，已收进框架）**：`ktv_mode='popcount'` 把 K/V 沿 token 维 bit-pack、
+> 用 popcount 算 `KᵀV`（`spike_ktv_popcount`）。**逐位精确**，含 Triton pack kernel 的全路径**净胜
+> cutlass bmm 1.4–2.2×**（随 batch 增大）。因 `KᵀV` 仅占整块 ~5%（Amdahl），端到端约 +2–3%，
+> 故默认仍是 `bmm`、popcount 作为 opt-in：`fuse_spiking_attention(model, ...)` 后或
+> `FusedSpikeAttention.from_reference(ref, ktv_mode='popcount')`。`libdevice.popc` 不可用的 triton 构建自动退回 bmm。
+
+代码：[`kernels/attention.py`](kernels/attention.py)（`spike_av_lif`/`spike_ktv`）、
+[`nn/attention.py`](nn/attention.py)（`FusedSpikeAttention`）、
+[`passes/attention_fuse.py`](passes/attention_fuse.py)（`fuse_spiking_attention`）、
+测试 [`tests/test_spike_attention.py`](tests/test_spike_attention.py)。
 
 ---
 

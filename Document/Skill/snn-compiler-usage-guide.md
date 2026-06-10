@@ -12,6 +12,8 @@
 
 并给出本框架的**技术路径**：从单 kernel 出发，逐层扩展到多 neuron、多 reset、含残差融合、跨架构通用 pass。
 
+> 想先搞清"框架内部识别到什么模式、执行什么动作"（图重写 + kernel constexpr 特化，带真实 before/after 输出），见 [snn-compiler-pattern-to-action.md](./snn-compiler-pattern-to-action.md)。
+
 ---
 
 ## 目录
