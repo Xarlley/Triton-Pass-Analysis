@@ -67,8 +67,17 @@
   本网络 **compute-bound**（conv 占大头，~33 TFLOP/s bf16），per-chunk 的 launch 开销被长 conv kernel 摊薄 → 分块几乎不损速。
 - **甚至低估了分块**：分块路径在计时区里每块还 `torch.randn` 生成输入（RNG 也被计进稳态），full 用预生成输入不含此项 →
   公平比较下分块只会**更快**，不会更慢。
-- **不可外推**：「分块几乎免费」仅对 **compute-bound、卷积重** 的 SNN 成立；**launch-bound** 场景（小 batch、小空间、线性/注意力小算子）
-  下小 chunk 会因 launch 暴增而明显变慢。
+- **「分块几乎免费」只对 compute-bound 网络成立 —— 已用 launch-bound 配置实测验证**（不是外推）：
+  把同一网络压成 launch-bound（**B=1, H=W=16**，conv 极小 → 每次 launch 的固定开销主导）后扫 chunk（T=64, 稳态 ms）：
+
+  | chunk | full | 64 | 16 | 4 | 1 |
+  |---|---:|---:|---:|---:|---:|
+  | 稳态 ms | 0.478 | 0.521 | 1.97 | 7.38 | **29.09** |
+  | vs full | 1.00× | 1.09× | 4.1× | 15× | **61× 更慢** |
+
+  即 launch-bound 下 **chunk 越小、kernel launch 越多 → 越慢，chunk=1 比 full 慢 61×**（稳态 ~∝ 1/chunk = launch 次数）。
+  与 compute-bound 配置（B=8,H=112，chunk=1 = 0.95× full）形成鲜明对比 → **「分块免费」是 compute-bound 专属**，
+  小 batch / 小空间 / 线性·注意力小算子等 launch-bound 场景务必用较大 chunk。原始数据：[`results/chunk_sweep_launchbound.log`](./results/chunk_sweep_launchbound.log)。
 
 ### 3. 编译 / 冷启动律（定性确凿、定量不可信）
 - **机制确凿**：`static_range` 展开长度 = chunk 或 T；展开越长，triton 编译越慢且**超线性**。

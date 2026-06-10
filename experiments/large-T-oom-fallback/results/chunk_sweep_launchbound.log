@@ -1,0 +1,9 @@
+# 验证「分块免费仅 compute-bound」—— launch-bound 配置 (B=1, H=W=16, T=64) 扫 chunk，稳态时间
+# 对照 compute-bound (B=8, H=112): chunk=1=41.9ms ≈ full=44.2ms (0.95×, 几乎免费)
+  chunk=1 : PEAK=0.011 STEADY=29.087 STATUS=ok    # 61× full
+  chunk=4 : PEAK=0.011 STEADY=7.383  STATUS=ok    # 15× full
+  chunk=16: PEAK=0.013 STEADY=1.970  STATUS=ok    # 4.1× full
+  chunk=64: PEAK=0.020 STEADY=0.521  STATUS=ok    # 1.09× full
+  full    : PEAK=0.020 STEADY=0.478  STATUS=ok    # 基准
+# 结论：launch-bound 下小 chunk 因 launch 暴增急剧变慢（chunk=1 慢 61×），验证了该边界条件。
+# 跑法：python experiments/large-T-oom-fallback/chunk_sweep.py --worker chunked 64 <chunk> 1 16
