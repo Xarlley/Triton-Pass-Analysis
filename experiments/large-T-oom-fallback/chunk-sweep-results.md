@@ -67,17 +67,27 @@
   本网络 **compute-bound**（conv 占大头，~33 TFLOP/s bf16），per-chunk 的 launch 开销被长 conv kernel 摊薄 → 分块几乎不损速。
 - **甚至低估了分块**：分块路径在计时区里每块还 `torch.randn` 生成输入（RNG 也被计进稳态），full 用预生成输入不含此项 →
   公平比较下分块只会**更快**，不会更慢。
-- **「分块几乎免费」只对 compute-bound 网络成立 —— 已用 launch-bound 配置实测验证**（不是外推）：
-  把同一网络压成 launch-bound（**B=1, H=W=16**，conv 极小 → 每次 launch 的固定开销主导）后扫 chunk（T=64, 稳态 ms）：
+- **「分块几乎免费」只对 compute-bound 网络成立 —— 已造一组 launch-bound 配置逐一实测验证**（不是外推）。
+  用「每次 launch 的算力 ∝ B·H²」刻画 launch-bound 程度（越小越 launch-bound），固定 T=64 扫 chunk，测稳态 ms
+  （脚本 [`launchbound_sweep.py`](./launchbound_sweep.py)，日志 [`results/launchbound_sweep.log`](./results/launchbound_sweep.log)）：
 
-  | chunk | full | 64 | 16 | 4 | 1 |
-  |---|---:|---:|---:|---:|---:|
-  | 稳态 ms | 0.478 | 0.521 | 1.97 | 7.38 | **29.09** |
-  | vs full | 1.00× | 1.09× | 4.1× | 15× | **61× 更慢** |
+  | 配置 (B,H) | B·H² | chunk=1 | chunk=4 | chunk=16 | full(=chunk64) | **chunk1/full** | 判定 |
+  |---|---:|---:|---:|---:|---:|---:|---|
+  | (8,112) | 100352 | 41.8 | 42.2 | 44.1 | 44.3 | **0.9×** | 几乎免费 |
+  | (8,32)  | 8192   | 29.7 | 7.8  | 2.8  | 3.5  | **8.5×** | 明显变慢 |
+  | (2,32)  | 2048   | 29.9 | 7.5  | 1.95 | 0.75 | **39.8×** | 急剧变慢 |
+  | (1,32)  | 1024   | 29.2 | 7.5  | 1.95 | 0.54 | **54.0×** | 急剧变慢 |
+  | (1,16)  | 256    | 28.6 | 7.3  | 1.96 | 0.53 | **54.1×** | 急剧变慢 |
+  | (1,8)   | 64     | 29.2 | 7.6  | 1.94 | 0.54 | **54.4×** | 急剧变慢 |
 
-  即 launch-bound 下 **chunk 越小、kernel launch 越多 → 越慢，chunk=1 比 full 慢 61×**（稳态 ~∝ 1/chunk = launch 次数）。
-  与 compute-bound 配置（B=8,H=112，chunk=1 = 0.95× full）形成鲜明对比 → **「分块免费」是 compute-bound 专属**，
-  小 batch / 小空间 / 线性·注意力小算子等 launch-bound 场景务必用较大 chunk。原始数据：[`results/chunk_sweep_launchbound.log`](./results/chunk_sweep_launchbound.log)。
+  三点结论（机理被这组数据直接揭示）：
+  1. **随网络从 compute-bound 变 launch-bound（B·H² 从 10万→64），分块的减速从 0.9×（免费）单调升到 ~54×（急剧）并饱和。**
+  2. **关键 launch-bound 指纹：chunk=1 的稳态时间在所有 launch-bound 配置上几乎是常数 ~29 ms**（28.6–29.9），与数据大小无关——
+     因为此时时间被 **kernel launch 的固定开销**主导（chunk=1 = 64 块 × 5 层 ≈ 320 次 launch），跟实际算多少无关。
+     同理 chunk=4 恒 ~7.5ms、chunk=16 恒 ~1.95ms（≈ launch 次数 ∝ 1/chunk）。而 **full（1 块）的时间随算力缩小一路降到 ~0.5ms**（跟踪真实计算）。
+  3. 于是 **减速倍数 = launch 次数之比**：compute-bound 时算力 ≫ launch 开销 → 比值 ~1×（免费）；launch-bound 时 launch 开销 ≫ 算力 → 比值饱和到 ~54×（≈ chunk=1 与 full 的 launch 数之比）。
+
+  → **「分块免费」是 compute-bound 专属**；小 batch / 小空间 / 线性·注意力小算子等 launch-bound 场景，**chunk 越小越慢、最高慢 ~54×**，务必用较大 chunk（在显存允许下尽量大）。
 
 ### 3. 编译 / 冷启动律（定性确凿、定量不可信）
 - **机制确凿**：`static_range` 展开长度 = chunk 或 T；展开越长，triton 编译越慢且**超线性**。
