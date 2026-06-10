@@ -5,6 +5,9 @@ from .modules import (
     RateCodedIFNode, RateCodedLIFNode, StatefulLIFNode,
 )
 from .chunked import ChunkedForward, run_chunked
+from .attention import (
+    FusedSpikeAttention, is_spiking_self_attention, is_ms_attention, is_spiking_attention,
+)
 
 __all__ = [
     "IFNode", "LIFNode", "CubaLIFNode", "EIFNode",
@@ -12,4 +15,5 @@ __all__ = [
     "FusedConvBNAddNeuron", "FusedAddNeuron",
     "RateCodedIFNode", "RateCodedLIFNode", "StatefulLIFNode",
     "ChunkedForward", "run_chunked",
+    "FusedSpikeAttention", "is_spiking_self_attention", "is_ms_attention", "is_spiking_attention",
 ]
