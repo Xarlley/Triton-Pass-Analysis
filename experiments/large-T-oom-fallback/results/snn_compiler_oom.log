@@ -1,0 +1,29 @@
+GPU: NVIDIA GeForce RTX 5070 Ti  total=15.4 GiB  torch=2.9.1+cu128
+
+================================================================================
+Part B — 多层 conv-bn-LIF 栈：full-T 融合 vs chunked（逐 chunk python 循环 + 膜电位状态）
+================================================================================
+正确性(T=24, chunk=8)：full-T 与 chunked 逐位一致 = True  max|Δ|=0.000e+00
+正确性(T=64, chunk=16, 同一输入)：full-T 与 chunked 逐位一致 = True  max|Δ|=0.000e+00
+
+BATCH=16 H=W=112；显卡 15.4 GiB；chunk_t=16
+    T |   full-T峰值  full  full(ms) |   chunked峰值   ck  chunk(ms) |   chunk慢
+   16 |    1.94GiB    OK      22.1 |     1.97GiB   OK       22.2 |    1.01×
+   32 |    3.87GiB    OK      44.2 |     2.02GiB   OK       44.5 |    1.01×
+   64 |    7.74GiB    OK      89.4 |     2.02GiB   OK       89.3 |    1.00×
+  128 |        >16   OOM         — |     2.16GiB   OK      178.9 | 仅chunked存活
+
+说明：chunked 峰值显存与 T 基本无关（∝ chunk_t），full-T ∝ T；故大 T 时只有 chunked 能跑通，但更慢。
+
+================================================================================
+Part A — 整网 VGG-16 SNN（融合, bf16, NHWC）扫 T；显卡 NVIDIA GeForce RTX 5070 Ti 15.4 GiB
+================================================================================
+模型权重常驻显存 = 0.258 GiB（与 T 无关）；BATCH=8
+    T |    状态 |     峰值显存(GiB) |    每图(ms) | 备注
+    4 |    OK |          0.91 |      1.99 | 
+   16 |    OK |          2.60 |      7.76 | Δpeak/ΔT≈144 MiB/步
+   32 |    OK |          4.93 |     15.56 | Δpeak/ΔT≈149 MiB/步
+   64 |    OK |          9.60 |     31.13 | Δpeak/ΔT≈149 MiB/步
+  128 |   OOM |         > 15 |         — | 全 T 融合路径 OOM（激活 [T,B,...] ∝ T）
+
+OOM_FALLBACK_DEMO_DONE

@@ -1,0 +1,20 @@
+[patch] convert_and_store 已就地替换于 4 个模块（不改包文件）
+GPU: NVIDIA GeForce RTX 5070 Ti  total=15.4 GiB  torch=2.12.0+cu130  triton=3.7.0
+spikingjelly IFNode 支持后端: ('torch', 'cupy', 'triton', 'inductor')
+
+=== 正确性/后端探针（小网络小 T，同进程）===
+  多步 triton vs 单步 python：max|Δ|=0.000e+00  (≈0 即等价)
+  大 T 等价性 T=32（同一输入：多步triton vs 单步python）：MAXDIFF=1.351e-03
+
+=== OOM 扫描（BATCH=16, H=W=112；多步 triton vs 单步 python 循环；子进程隔离测显存）===
+    T |    多步triton峰值   多步triton |     单步python峰值   单步python | 结论
+    4 |       1.46GiB         OK |        0.45GiB         OK | 
+   16 |       4.93GiB         OK |        0.45GiB         OK | 
+   32 |       9.56GiB         OK |        0.45GiB         OK | 
+   64 |           >16        OOM |        0.45GiB         OK | ★ triton(多步) OOM，python(单步) 存活
+  128 |           >16        OOM |        0.46GiB         OK | ★ triton(多步) OOM，python(单步) 存活
+  256 |           >16        OOM |        0.46GiB         OK | ★ triton(多步) OOM，python(单步) 存活
+  512 |           >16        OOM |        0.46GiB         OK | ★ triton(多步) OOM，python(单步) 存活
+ 1024 |           >16        OOM |        0.46GiB         OK | ★ triton(多步) OOM，python(单步) 存活
+
+SJ_TRITON_OOM_DONE
