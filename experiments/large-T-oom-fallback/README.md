@@ -109,6 +109,21 @@ spikingjelly **近似一致（~1e-3）**（见 §正确性）。
 
 ---
 
+## 进一步：分块系统实验（T × chunk 三维权衡）
+
+在「必须分块」之上，对**分块本身**做了系统横扫（固定网络 ConvSNNStack, B=8, H=112；扫 T × chunk），
+量化 **显存 / 速度 / 编译** 随 (T,chunk) 的变化，详见 **[`chunk-sweep-results.md`](./chunk-sweep-results.md)**（脚本
+[`chunk_sweep.py`](./chunk_sweep.py)，日志 [`results/chunk_sweep.log`](./results/chunk_sweep.log)）。三条经核查的定律：
+
+- **显存** = `0.0594·chunk + 0.064` GiB（R²=0.99999），**与 T 无关**；对偶关系「一个分块步 = 一个时间步」→ full-T 即 chunk=T。
+- **速度** ∝ 总帧数 T、**几乎与 chunk 无关**（compute-bound 卷积 SNN，launch 被摊薄）→ 分块在此类网络上**几乎不损速**。
+- **编译/冷启动**：`static_range` 展开长度=chunk(或 T)，展开越长编译越慢且超线性——**full@T=128 连编都编不动（>170s, TMO）**，
+  小 chunk 秒级。
+
+→ 对卷积型 SNN：**小到中等 chunk（8–32）几乎全赢**（显存大降、速度几乎不损、编译还快），"全 T 一把梭"在大 T 既 OOM 又编不动。
+
+---
+
 ## 复现
 
 ```bash
