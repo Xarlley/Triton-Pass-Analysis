@@ -30,3 +30,6 @@ remote_gpu_servers/
 /spyx/
 /norse/
 /examples/neurobench/
+
+# 本地实验临时模型权重（不入 repo）
+temp/
