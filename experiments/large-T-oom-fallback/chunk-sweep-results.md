@@ -118,3 +118,61 @@
 （T=256 full 恰在 15.4 GiB 边缘）；速度仅 3 次中位数、单机单精度单 batch；冷启动列噪声大。这些已在上文逐条标注。
 
 > 复现：`python experiments/large-T-oom-fallback/chunk_sweep.py`（单元：`... --worker {full|chunked} <T> <chunk> <B> <H>`）。
+
+---
+
+## 附：compute-bound 与 launch-bound 的区别（及它为何决定"分块要不要钱"）
+
+> 这一节把上文 launch-bound 谱系背后的概念单独整理出来，便于查阅。所有数字来自上文实测。
+
+### 1. 两种"瓶颈"是什么
+
+一次 GPU 算子（kernel）的墙钟时间 ≈ **固定启动开销** + **实际计算时间**：
+
+- **固定启动开销**（与算多少无关）：CPU 侧 python 派发、框架调度、CUDA kernel launch 延迟、同步等。每次 launch 量级约**几十微秒**。
+- **实际计算时间**（∝ 算力/数据量）：真正在 SM 上做乘加、读写显存的时间。
+
+按哪一项主导，分两种：
+
+| | **compute-bound（算力受限）** | **launch-bound（启动受限）** |
+|---|---|---|
+| 谁主导墙钟时间 | 实际计算（FLOP / 访存）≫ 启动开销 | **固定启动开销 ≫ 实际计算** |
+| 典型成因 | 大 batch、大空间分辨率、大通道、稠密大算子 | 小 batch、小空间、小通道、很多**碎小**算子（1×1 卷积、小矩阵乘、逐元素） |
+| 加大数据量 | 时间随之变长（算得多） | 时间**几乎不变**（启动开销吃满） |
+
+### 2. 一个刻画指标：每次 launch 的算力
+
+对本实验的卷积层，单次 launch 的算力 ∝ `chunk·B·C·H²·K²`；固定 chunk/通道/核后，用 **`B·H²`** 当"算力大小"的代理。
+`B·H²` 越大越 compute-bound、越小越 launch-bound。上文谱系把它从 ~10 万（(8,112)）压到 ~64（(1,8)），就是在这条轴上滑动。
+
+### 3. 为什么这恰好决定"分块要不要钱"
+
+分块**只改变 kernel launch 的次数（≈ T/chunk × 层数），不改变总计算量**（总帧数 T·B 不变、总 FLOP 不变）。把上面的模型写成：
+
+```
+总时间 ≈ 总计算时间(与 chunk 无关)  +  launch 次数 × 单次启动开销
+              ↑ ∝ T·B·每帧算力              ↑ ∝ (T/chunk)·层数
+```
+
+- **compute-bound**：第一项 ≫ 第二项 → 总时间 ≈ 总计算时间 → **与 chunk 几乎无关 → 分块免费**。
+- **launch-bound**：第二项 ≫ 第一项 → 总时间 ≈ launch 次数 × 启动开销 ∝ **1/chunk** → **chunk 越小越慢**。
+
+### 4. 实测指纹（直接印证上面的模型）
+
+- **compute-bound (8,112)**：chunk=1 (41.8ms) ≈ full (44.3ms)，时间跟踪"计算"、对 chunk 不敏感（第二项被淹没）。
+- **launch-bound (1,8)/(1,16)/(1,32)**：
+  - **chunk=1 的时间在所有 launch-bound 配置上恒为 ~29ms**（28.6–29.9），**与数据大小无关**——这就是"启动开销吃满"的指纹（chunk=1 = 64 块 × 每块约十几次 launch ≈ 上千次 launch，~29ms / 上千次 ≈ 每次几十 µs，正是启动开销量级）。
+  - 同理 chunk=4 恒 ~7.5ms、chunk=16 恒 ~1.95ms：时间 ∝ launch 次数 ∝ 1/chunk。
+  - **full（1 块）的时间随算力一路降到 ~0.5ms**：launch 极少，时间跟踪"计算"。
+- **减速倍数 = launch 次数之比**：从 compute-bound 的 0.9× 单调升到 launch-bound 的 ~54× 并饱和（≈ chunk=1 与 full 的 launch 数之比）。
+
+### 5. 怎么判断自己的网络 + 对选 chunk 的指导
+
+- **判断**：把 batch / 分辨率 / 算子大小往小了缩，如果总时间几乎不降，就是 launch-bound；如果随之明显下降，就是 compute-bound。或直接像本实验那样扫 chunk——若 chunk 变小时间几乎不变 = compute-bound，若 chunk 变小急剧变慢 = launch-bound。
+- **选 chunk**：
+  - compute-bound（大 batch 的卷积型 SNN，如本仓库 SEW-ResNet/VGG-SNN 推理）：chunk 只看显存预算，speed 不敏感，**小到中等 chunk 几乎全赢**。
+  - launch-bound（小 batch / 小空间 / 脉冲 Transformer 里大量 1×1 卷积·小矩阵乘）：**在显存允许下 chunk 尽量大**，否则 launch 暴增、最高慢 ~54×。
+
+### 6. 与本仓库其它结论的联系
+
+snn_compiler 的融合 LIF kernel 用 `tl.static_range(0,T)` 把**整段 T 的神经元更新融进一个 kernel**，正是在**减少 launch 次数**——这对 launch-bound 段是直接收益（也是脉冲注意力一节里"融合主要赢在省 launch"的同一原理）。反过来，分块把一个大 kernel 拆成多次启动，是在**反向**增加 launch；compute-bound 下无所谓，launch-bound 下就要付钱。**「省显存」与「省 launch」在这里是一对需要按瓶颈权衡的矛盾。**
