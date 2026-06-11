@@ -1,0 +1,22 @@
+GPU NVIDIA GeForce RTX 5070 Ti  total=15.4GiB  triton 3.7.0
+
+=== (1) 多块正确性：autochunk(强制 chunk<T，多块串接) vs 整段多步 ===
+    fc(无卷积)逐位一致(~1e-7)→证明分块驱动数值精确；conv 的残差是 cuDNN 按 batch 选不同卷积算法的固有差
+    (与 多步vs单步 同源、确定性、训练网上预测稳定；判定取保守上限 dchunk≤5e-2)
+      model    T   B    H chunk |     dchunk    dsingle nchunks     判定
+ conv_small   24   8   64     8 |  2.690e-02  4.470e-08       3      ✓
+ conv_small   24   8  112     8 |  1.617e-02  5.960e-08       3      ✓
+  conv_wide   12   4   48     4 |  0.000e+00  0.000e+00       3      ✓
+         fc   24   4   16     8 |  5.960e-08  5.960e-08       3      ✓
+
+=== (2) 不 OOM + regime：大 T 下 full 多步 vs autochunk ===
+      model    T   B    H |       full |   auto chunk_t        regime      peak/预算
+ conv_small  256  16  112 |        OOM |     OK      32 compute-bound   6.86/11.92
+ conv_small  512  16  112 |        OOM |     OK      32 compute-bound   7.43/11.43
+  conv_wide  128   8  112 |        OOM |     OK      32 compute-bound   4.97/12.26
+  conv_wide  256   8   64 |        OOM |     OK      64 compute-bound   3.20/12.31
+ conv_small  256   1    8 | compile-stall(>100s) |     OK      64  launch-bound   0.04/12.40
+         fc  256   1   16 | compile-stall(>100s) |     OK      64  launch-bound   0.04/12.39
+         fc  512   4   32 | compile-stall(>100s) |     OK      64  launch-bound   0.06/12.37
+
+GENERALIZATION_DONE

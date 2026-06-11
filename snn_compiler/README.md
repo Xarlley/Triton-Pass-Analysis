@@ -258,7 +258,8 @@ saturated. Going further just costs memory for no speed.
 |---|---|---|
 | **i64 byte offsets** | Always on. Hard requirement for T·NCL·dtype_size > 2 GiB. | — (already mandatory) |
 | **`RateCodedLIFNode`** | Your network's final LIF is the *voting output* (spike sum → argmax) | Final layer is `nn.Linear` producing logits (most ANN-converted SNN); rate-coded would break the math |
-| **`StatefulLIFNode` + `ChunkedForward`** | Activation `[T, B, …]` > GPU memory budget | Memory fits → 47% slower with no benefit |
+| **`StatefulLIFNode` + `ChunkedForward`** | Activation `[T, B, …]` > GPU memory budget, **and** you fix `chunk_t` yourself for a snn_compiler model | Memory fits → 47% slower with no benefit |
+| **`AutoChunkInference`** | You want chunk_t chosen **automatically** to fill memory without OOM, esp. for **SpikingJelly multistep+triton** models at large T (OOM *or* compile-stall). Non-invasive outer wrapper. | Small T that already fits in one shot (wrapper just runs it whole — no harm, but no benefit) |
 | **`fuse_modules_path`** | Custom non-Sequential model (e.g., your own ResNet block) | Plain `nn.Sequential` (just use `fuse_snn_model`) |
 
 ### 2.8 Decision flowchart for end-to-end use
@@ -276,13 +277,52 @@ Custom topology  (your own model class)
 ├─→ For residual blocks: FusedConvBNAddNeuron in second path
 ├─→ Else: fuse_modules_path(model, […]) for in-place fusion
 
-Large T (>= 32) with memory pressure
+Large T (>= 32) with memory pressure  (snn_compiler model, you pick chunk_t)
 ├─→ Wrap model.forward_chunked(...) in ChunkedForward(model, chunk_t=16)
 └─→ Use StatefulLIFNode for each LIF layer
+
+Large T, auto chunk, or a SpikingJelly multistep+triton model  (OOM or compile-stall)
+└─→ AutoChunkInference(model, reset_fn=functional.reset_net)   # auto chunk_t, no OOM
 
 Spike-count vote architecture
 └─→ Replace the final LIFNode with RateCodedLIFNode
 ```
+
+### 2.9 `AutoChunkInference` — automatic, non-invasive T-chunking (no OOM, no compile-stall)
+
+`ChunkedForward` (§2.7) needs you to pick `chunk_t` and needs a snn_compiler model exposing
+`forward_chunked`. `AutoChunkInference` is the **automatic, model-agnostic** counterpart: an outer
+wrapper that picks `chunk_t` itself to **fill memory without OOM**, and works on any model whose neurons
+**carry state across no-reset calls** — in particular **SpikingJelly multistep+triton** models
+(`step_mode='m', backend='triton'`), which materialize `[T,B,…]` and so OOM (compute-bound) *or*
+compile-stall (launch-bound, `static_range(T)` unroll) at large T.
+
+```python
+from snn_compiler.nn import AutoChunkInference
+from spikingjelly.activation_based import functional
+auto = AutoChunkInference(net, reset_fn=functional.reset_net)   # net: SJ multistep+triton model
+y = auto(x_seq)          # x_seq=[T,B,…]; auto-selects chunk_t (cached per input shape)
+print(auto.last_plan)    # {regime, chunk_t, measured_peak_GiB, budget_GiB, …}
+```
+
+- **Order = optimize-then-chunk (optimization inner, chunk outer).** The wrapper leaves the model's
+  existing acceleration (multistep triton backend / fusion) untouched and only feeds it `chunk_t`-long
+  time slices. Because the neuron kernel unrolls `static_range(chunk_t)`, chunking **bounds the compile**
+  to `chunk_t` (≤64) — the same mechanism that avoids the compile cliff.
+- **Auto-select = doubling search.** Probes real peak at growing chunk sizes, only probing a size it
+  predicts will fit → **never deliberately OOMs** (a deliberate OOM poisons the allocator). Robust to
+  cuDNN's non-affine, batch-dependent conv memory (where the affine `mem≈a·chunk+b` law of snn_compiler's
+  own fused convs does *not* hold). Plus a halve-on-OOM fallback in `forward`.
+- **Regime-aware.** compute-bound (large B·H): chunk bounded by the **memory budget**. launch-bound
+  (small B·H): chunk bounded by the **compile-safe cap** (64) — small chunks there are up to 54× slower.
+- **Correctness.** The driver is numerically exact (a conv-free net is bit-equal across chunks; state
+  carry is bit-equal at chunk=1). For conv nets the only residual is cuDNN picking a different conv
+  algorithm at the chunk's batch size — the same deterministic, prediction-stable class as the
+  multistep-vs-singlestep / BN-fold differences in §3.5, **not** a chunking error.
+
+Verified on RTX 5070 Ti across 3 architectures × params: SJ multistep OOMs/compile-stalls at T≥64–256
+while `AutoChunkInference` completes at T up to 512. See
+[experiments/autochunk/README.md](../experiments/autochunk/README.md).
 
 ---
 
@@ -440,7 +480,8 @@ snn_compiler/
 │   ├── modules.py         IF/LIF/CubaLIF/EIFNode, FusedConv(BN)(Add)Neuron,
 │   │                       FusedLinearNeuron, FusedAddNeuron,
 │   │                       RateCodedIF/LIFNode, StatefulLIFNode
-│   └── chunked.py         ChunkedForward, run_chunked
+│   ├── chunked.py         ChunkedForward, run_chunked (manual chunk_t)
+│   └── autochunk.py       AutoChunkInference (auto chunk_t, SJ multistep+triton, no-OOM)
 ├── passes/
 │   └── fuse.py            fuse_snn_model, fuse_modules_path
 ├── zoo/                   VGG, ResNet, MobileNet-V2 reference SNN
